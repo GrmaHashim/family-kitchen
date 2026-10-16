@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+{% block body %}
+<div class="wrap">
+  <header class="top">
+    <div class="top-row">
+      <a class="brand" href="{{ url_for('admin.orders') }}">
+        <span class="mark" aria-hidden="true">{{ S.kitchen_name[:1] }}</span>
+        <span><span class="t">{{ S.kitchen_name }}</span><small>{{ g.user.display_name }}{% if S.accepting_orders != '1' %} · الطلبات من الموقع متوقفة{% endif %}</small></span>
+      </a>
+      {% if active != 'form' %}<a class="btn primary" href="{{ url_for('admin.new_order', date=request.args.get('date', '')) }}">+ طلب جديد</a>{% endif %}
+    </div>
+    <nav class="tabs">
+      {% for key, label, ep in [('orders','الطلبات','admin.orders'),('prep','التحضير','admin.prep'),('menu','القائمة','admin.menu'),('reports','التقارير','admin.reports'),('settings','الإعدادات','admin.settings')] %}
+        <a href="{{ url_for(ep) }}" class="{{ 'on' if active == key }}">{{ label }}</a>
+      {% endfor %}
+      <form method="post" action="{{ url_for('admin.logout') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn ghost sm">خروج</button></form>
+    </nav>
+  </header>
+  {% include "_flashes.html" %}
+  <main>{% block main %}{% endblock %}</main>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/admin.js') }}"></script>{% endblock %}

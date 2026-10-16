@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} · {{ S.kitchen_name }}{% endblock %}
+{% block body %}
+<div class="wrap narrow">
+  <div class="empty" style="margin-top:12vh">
+    <strong>{{ title }}</strong>
+    <span>{{ message }}</span>
+    <a class="btn primary" href="{{ url_for('public.menu') }}">الصفحة الرئيسية</a>
+  </div>
+</div>
+{% endblock %}

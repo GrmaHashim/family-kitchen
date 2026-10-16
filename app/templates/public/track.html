@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}طلب #{{ o.number }} · {{ S.kitchen_name }}{% endblock %}
+{% block head %}{% if o.status not in ('done', 'cancelled') %}<meta http-equiv="refresh" content="60">{% endif %}<meta name="robots" content="noindex">{% endblock %}
+{% block body %}
+<div class="wrap narrow">
+  <header class="hero">
+    <a class="brand" href="{{ url_for('public.menu') }}"><span class="mark" aria-hidden="true">{{ S.kitchen_name[:1] }}</span><span class="t">{{ S.kitchen_name }}</span></a>
+  </header>
+
+  <div class="track">
+    {% if just_placed %}<div class="flash">وصلنا طلبك، شكرًا لك! احفظ هذه الصفحة لتتابع حالة الطلب.</div>{% endif %}
+
+    <section class="panel">
+      <div class="o-head"><span class="muted">رقم الطلب</span><span class="st s-{{ o.status }}">{{ STATUSES[o.status] }}</span></div>
+      <div class="bignum">#{{ o.number }}</div>
+      <div>{{ o.order_date|day_label }}{% if o.pickup_time %} · الساعة {{ o.pickup_time|time }}{% endif %} · {{ FULFILLMENT[o.fulfillment] }}</div>
+      {% if o.fulfillment == 'pickup' and S.pickup_address %}<div class="muted">مكان الاستلام: {{ S.pickup_address }}</div>{% endif %}
+      {% if o.fulfillment == 'delivery' and o.address %}<div class="muted">التوصيل إلى: {{ o.address }}</div>{% endif %}
+    </section>
+
+    {% if o.status == 'cancelled' %}
+      <div class="alert">أُلغي هذا الطلب.{% if S.kitchen_phone %} للاستفسار: <span dir="ltr">{{ S.kitchen_phone }}</span>{% endif %}</div>
+    {% else %}
+    <section class="panel">
+      <h3>حالة الطلب</h3>
+      {% set cur = steps.index(o.status) %}
+      <ol class="steps">
+        {% for s in steps %}
+        <li class="{{ 'done' if loop.index0 < cur or (loop.index0 == cur and s == 'done') }} {{ 'now' if loop.index0 == cur and s != 'done' }}">
+          <span class="dot"></span>
+          <span>{% if s == 'done' %}{{ 'تم التوصيل' if o.fulfillment == 'delivery' else 'تم الاستلام' }}{% elif s == 'ready' and o.fulfillment == 'delivery' %}جاهز وفي الطريق{% else %}{{ STATUSES[s] }}{% endif %}</span>
+        </li>
+        {% endfor %}
+      </ol>
+      {% if o.status not in ('done',) %}<p class="hint" style="margin:0">تتحدث هذه الصفحة تلقائيًا كل دقيقة.</p>{% endif %}
+    </section>
+    {% endif %}
+
+    <section class="panel">
+      <h3>تفاصيل الطلب</h3>
+      <ul class="o-items">
+        {% for i in o['items'] %}<li><span class="q">{{ i.qty }}×</span><span>{{ i.name }}</span><span class="p">{{ (i.qty * i.unit_price_cents)|money }}</span></li>{% endfor %}
+        {% if o.fulfillment == 'delivery' and o.delivery_fee_cents %}<li><span class="q"></span><span>رسوم التوصيل</span><span class="p">{{ o.delivery_fee_cents|money }}</span></li>{% endif %}
+      </ul>
+      <div class="o-foot"><span>المجموع</span><span class="o-total">{{ o.total_cents|money }}</span></div>
+      {% if o.notes %}<div class="o-notes">{{ o.notes }}</div>{% endif %}
+      <p class="hint" style="margin:0">الدفع عند الاستلام{% if o.paid %} · تم الدفع{% endif %}.</p>
+    </section>
+
+    {% if S.kitchen_phone %}<p class="muted">للتعديل أو الإلغاء تواصل معنا: <span dir="ltr" class="phone">{{ S.kitchen_phone }}</span></p>{% endif %}
+    <a class="btn" href="{{ url_for('public.menu') }}">طلب جديد</a>
+  </div>
+</div>
+{% endblock %}

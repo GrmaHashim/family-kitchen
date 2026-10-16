@@ -1,0 +1,69 @@
+{% extends "admin/base.html" %}
+{% set active = 'settings' %}
+{% block title %}الإعدادات · {{ S.kitchen_name }}{% endblock %}
+{% block main %}
+<div class="formhead"><h2>الإعدادات</h2></div>
+<form method="post" class="form">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <section class="panel">
+    <h3>استقبال الطلبات من الموقع</h3>
+    <label class="check"><input type="checkbox" name="accepting_orders" {{ 'checked' if S.accepting_orders == '1' }}> الموقع يستقبل طلبات الآن</label>
+    <label class="f">إعلان يظهر أعلى صفحة الزبائن (اختياري)<input class="field" name="announcement" value="{{ S.announcement }}" placeholder="مثال: الجمعة عندنا مندي، اطلب قبل الخميس"></label>
+    <div class="grid2">
+      <label class="f">مواعيد الاستلام (مفصولة بفاصلة)<input class="field" name="time_slots" dir="ltr" value="{{ S.time_slots }}" placeholder="12:00,13:00,18:00"></label>
+      <label class="f">يمكن الطلب مسبقًا حتى (أيام)<input class="field" name="days_ahead" type="number" min="0" max="7" dir="ltr" value="{{ S.days_ahead }}"></label>
+      <label class="f">أقل مدة قبل الموعد (دقائق)<input class="field" name="lead_minutes" type="number" min="0" step="15" dir="ltr" value="{{ S.lead_minutes }}"></label>
+      <label class="f">الحد الأدنى للطلب ($)<input class="field" name="min_order" type="number" min="0" step="0.5" dir="ltr" value="{{ '%.2f'|format(S.min_order_cents|int / 100) }}"></label>
+    </div>
+  </section>
+  <section class="panel">
+    <h3>التوصيل</h3>
+    <label class="check"><input type="checkbox" name="delivery_enabled" {{ 'checked' if S.delivery_enabled == '1' }}> نقدّم التوصيل</label>
+    <div class="grid2">
+      <label class="f">رسوم التوصيل ($)<input class="field" name="delivery_fee" type="number" min="0" step="0.5" dir="ltr" value="{{ '%.2f'|format(S.delivery_fee_cents|int / 100) }}"></label>
+      <label class="f">ملاحظة للزبائن عن التوصيل<input class="field" name="delivery_note" value="{{ S.delivery_note }}" placeholder="مثال: نوصّل داخل شمال شرق كالجاري فقط"></label>
+    </div>
+  </section>
+  <section class="panel">
+    <h3>بيانات المطبخ</h3>
+    <div class="grid2">
+      <label class="f">اسم المطبخ<input class="field" name="kitchen_name" value="{{ S.kitchen_name }}"></label>
+      <label class="f">جملة تعريفية<input class="field" name="tagline" value="{{ S.tagline }}"></label>
+      <label class="f">رقم التواصل (يظهر للزبائن)<input class="field" name="kitchen_phone" type="tel" dir="ltr" value="{{ S.kitchen_phone }}"></label>
+      <label class="f">مكان الاستلام (يظهر للزبائن)<input class="field" name="pickup_address" value="{{ S.pickup_address }}" placeholder="الحي أو العنوان التقريبي"></label>
+    </div>
+  </section>
+  <div><button class="btn primary big">حفظ الإعدادات</button></div>
+</form>
+
+<div class="grid2" style="margin-top:16px; align-items:start">
+  <section class="panel" id="users">
+    <h3>حسابات العائلة</h3>
+    <div class="users">
+      {% for u in users %}
+      <div class="urow"><b>{{ u.display_name }}</b> <span class="muted" dir="ltr">{{ u.username }}</span>
+        {% if not u.is_active %}<span class="tag">موقوف</span>{% endif %}
+        {% if u.id != g.user.id %}<form method="post" action="{{ url_for('admin.toggle_user', user_id=u.id) }}" class="inline" style="margin-inline-start:auto"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm ghost">{{ 'إيقاف' if u.is_active else 'تفعيل' }}</button></form>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('admin.add_user') }}" class="form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="f">الاسم<input class="field" name="display_name" placeholder="مثال: أم أحمد" required></label>
+      <label class="f">اسم المستخدم (بالإنجليزية)<input class="field" name="username" dir="ltr" autocomplete="off" required></label>
+      <label class="f">كلمة مرور مؤقتة (8 أحرف على الأقل)<input class="field" name="password" type="text" dir="ltr" autocomplete="off" minlength="8" required></label>
+      <div><button class="btn">إضافة حساب</button></div>
+    </form>
+  </section>
+  <section class="panel" id="account">
+    <h3>تغيير كلمة المرور</h3>
+    <form method="post" action="{{ url_for('admin.change_password') }}" class="form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="f">كلمة المرور الحالية<input class="field" name="current" type="password" dir="ltr" autocomplete="current-password" required></label>
+      <label class="f">كلمة المرور الجديدة<input class="field" name="new" type="password" dir="ltr" autocomplete="new-password" minlength="8" required></label>
+      <div><button class="btn">تغيير</button></div>
+    </form>
+    <p class="hint" style="margin:0">رابط صفحة الزبائن: <span dir="ltr" class="phone">{{ url_for('public.menu', _external=True) }}</span></p>
+  </section>
+</div>
+{% endblock %}

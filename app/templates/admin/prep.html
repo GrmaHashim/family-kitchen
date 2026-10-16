@@ -1,0 +1,36 @@
+{% extends "admin/base.html" %}
+{% set active = 'prep' %}
+{% block title %}التحضير · {{ S.kitchen_name }}{% endblock %}
+{% block main %}
+{% with endpoint='admin.prep', extra={} %}{% include "admin/_daybar.html" %}{% endwith %}
+{% if not rows %}
+  <div class="empty"><strong>لا شيء للتحضير {{ 'اليوم' if day == today_date else 'في هذا اليوم' }}</strong><span>عندما تُسجَّل الطلبات يظهر هنا كم تحتاج من كل صنف.</span></div>
+{% else %}
+<p class="hint">المجموع من كل صنف لطلبات هذا اليوم (بدون الملغاة). الشريط الأخضر هو ما أصبح جاهزًا أو سُلّم.</p>
+<div class="prep">
+  <div class="list"><h3>المطلوب تحضيره</h3>
+    {% for r in rows %}
+    <div class="prow">
+      <span class="pbig">{{ r.total }}</span>
+      <span class="pname">{{ r.name }}</span>
+      <div class="pbar"><i style="width: {{ (r.ready * 100 // r.total) }}%"></i></div>
+      <span class="psub">{% if r.ready %}جاهز {{ r.ready }} · {% endif %}{{ 'متبقٍ ' ~ (r.total - r.ready) if r.total > r.ready else 'اكتمل' }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="list"><h3>جدول الطلبات النشطة</h3>
+    {% for o in active %}
+    <div class="trow s-{{ o.status }}">
+      <span class="tt">{{ o.pickup_time|time if o.pickup_time else '—' }}</span>
+      <div><b>#{{ o.number }} {{ o.customer_name }}</b> <span class="tag {{ 'delivery' if o.fulfillment == 'delivery' }}">{{ FULFILLMENT[o.fulfillment] }}</span>
+        <div class="ti">{% for i in o['items'] %}{{ i.qty }}× {{ i.name }}{{ '، ' if not loop.last }}{% endfor %}</div>
+        {% if o.notes %}<div class="ti">ملاحظة: {{ o.notes }}</div>{% endif %}</div>
+      <span class="st">{{ STATUSES[o.status] }}</span>
+    </div>
+    {% else %}
+    <div class="trow"><span></span><span class="ti">كل طلبات هذا اليوم سُلّمت.</span><span></span></div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

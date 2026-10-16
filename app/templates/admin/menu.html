@@ -1,0 +1,48 @@
+{% extends "admin/base.html" %}
+{% set active = 'menu' %}
+{% block title %}القائمة · {{ S.kitchen_name }}{% endblock %}
+{% macro act(item, action, label, cls) -%}
+<form method="post" action="{{ url_for('admin.menu_update', item_id=item.id) }}" class="inline">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ action }}">
+  <button class="{{ cls }}">{{ label }}</button>
+</form>
+{%- endmacro %}
+{% block main %}
+<div class="formhead"><h2>القائمة</h2></div>
+<p class="hint">«نفد» يمنع طلب الصنف من الموقع مع بقائه ظاهرًا. «مخفي من الموقع» يجعله للطلبات الهاتفية فقط. الطلبات القديمة تحتفظ بالاسم والسعر وقت الطلب.</p>
+<div class="list">
+  <form method="post" action="{{ url_for('admin.menu_add') }}" class="addmenu">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input class="field nmf" name="name" placeholder="اسم الصنف، مثل: كبسة لحم" aria-label="اسم الصنف" required>
+    <input class="field" name="category" placeholder="التصنيف: أطباق رئيسية" aria-label="التصنيف" list="cats">
+    <input class="field" name="price" type="number" inputmode="decimal" min="0" step="0.5" dir="ltr" placeholder="السعر $" aria-label="السعر">
+    <button class="btn primary">إضافة</button>
+  </form>
+  <datalist id="cats">{% for c in items|map(attribute='category')|unique if c %}<option value="{{ c }}">{% endfor %}</datalist>
+  {% for m in items %}
+  <div class="mrow" id="item-{{ m.id }}">
+    <form method="post" action="{{ url_for('admin.menu_update', item_id=m.id) }}" class="edit">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input class="field nmf" name="name" value="{{ m.name }}" aria-label="اسم الصنف">
+      <input class="field" name="category" value="{{ m.category }}" placeholder="التصنيف" aria-label="التصنيف" list="cats">
+      <input class="field" name="price" type="number" inputmode="decimal" min="0" step="0.5" dir="ltr" value="{{ '%.2f'|format(m.price_cents / 100) }}" aria-label="السعر">
+      <button class="btn sm">حفظ</button>
+      <input class="field desc" name="description" value="{{ m.description }}" placeholder="وصف قصير يظهر للزبائن (اختياري)" aria-label="الوصف">
+    </form>
+    <div class="tools">
+      {{ act(m, 'toggle', 'متاح' if m.available else 'نفد', 'switch' if m.available else 'switch no') }}
+      {{ act(m, 'online', 'يظهر في الموقع' if m.show_online else 'مخفي من الموقع', 'switch neutral') }}
+      {% if not loop.first %}{{ act(m, 'up', '↑', 'btn sm ghost') }}{% endif %}
+      {% if not loop.last %}{{ act(m, 'down', '↓', 'btn sm ghost') }}{% endif %}
+      {% if confirm_id == m.id %}
+        {{ act(m, 'delete', 'تأكيد الحذف', 'btn sm danger') }}<a class="btn sm" href="{{ url_for('admin.menu') }}#item-{{ m.id }}">تراجع</a>
+      {% else %}
+        <a class="btn sm ghost" href="{{ url_for('admin.menu', confirm=m.id) }}#item-{{ m.id }}">حذف</a>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="empty" style="border:0"><strong>القائمة فارغة</strong><span>أضف أول صنف من الحقول أعلاه.</span></div>
+  {% endfor %}
+</div>
+{% endblock %}

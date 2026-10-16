@@ -1,0 +1,98 @@
+{% extends "admin/base.html" %}
+{% set active = 'form' %}
+{% block title %}{{ 'تعديل الطلب #' ~ o.number if o.id else 'طلب جديد' }} · {{ S.kitchen_name }}{% endblock %}
+{% block main %}
+<div class="formhead">
+  <a class="btn ghost" href="{{ url_for('admin.orders', date=o.order_date) }}">→ رجوع</a>
+  <h2>{{ 'تعديل الطلب #' ~ o.number if o.id else 'طلب جديد' }}</h2>
+</div>
+
+<form method="post" class="form" id="orderForm" novalidate data-search="{{ url_for('admin.api_customers') }}" data-editing="{{ 1 if o.id else 0 }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+
+  <section class="panel">
+    <h3>الزبون</h3>
+    <div class="row" role="radiogroup" aria-label="مصدر الطلب">
+      {% for key, label in SOURCES.items() if key != 'web' or o.source == 'web' %}
+      <label class="chip"><input type="radio" name="source" value="{{ key }}" {{ 'checked' if o.source == key }}>{{ label }}</label>
+      {% endfor %}
+    </div>
+    <div class="grid2">
+      <label class="f">رقم الجوال<input id="f-phone" name="phone" class="phone-in" type="tel" inputmode="tel" dir="ltr" autocomplete="off" placeholder="403 555 0123" value="{{ o.phone|phone if o.phone }}" {{ 'autofocus' if not o.id }}></label>
+      <label class="f">الاسم<input id="f-name" name="customer_name" autocomplete="off" placeholder="اسم الزبون" value="{{ o.customer_name }}"></label>
+    </div>
+    <div class="suggest" id="suggest" aria-live="polite"></div>
+    <div class="seg" role="radiogroup" aria-label="طريقة الاستلام">
+      <label><input type="radio" name="fulfillment" value="pickup" {{ 'checked' if o.fulfillment != 'delivery' }}><span>استلام</span></label>
+      <label><input type="radio" name="fulfillment" value="delivery" {{ 'checked' if o.fulfillment == 'delivery' }}><span>توصيل</span></label>
+    </div>
+    <div class="grid2" id="deliveryWrap" {{ 'hidden' if o.fulfillment != 'delivery' }}>
+      <label class="f">العنوان<input id="f-address" name="address" autocomplete="off" placeholder="الحي، الشارع، رقم البيت" value="{{ o.address }}"></label>
+      <label class="f">رسوم التوصيل ($)<input id="f-fee" name="delivery_fee" type="number" inputmode="decimal" min="0" step="0.5" dir="ltr" value="{{ '%.2f'|format((o.delivery_fee_cents if o.fulfillment == 'delivery' else default_fee) / 100) }}"></label>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>الأصناف</h3>
+    {% if menu %}
+    <div class="tiles">
+      {% for m in menu %}{% set q = qty.get(m.id, 0) %}
+      <div class="tile {{ 'on' if q }} {{ 'off' if not m.available and not q }}" data-price="{{ m.price_cents }}" data-id="{{ m.id }}">
+        <span class="tile-name">{{ m.name }}</span>
+        <span class="tile-price">{{ m.price_cents|money }}{% if not m.available %} · نفد{% endif %}</span>
+        <div class="stepper">
+          <button type="button" data-step="-1" aria-label="إنقاص">−</button>
+          <input type="number" name="qty_{{ m.id }}" value="{{ q }}" min="0" max="99" inputmode="numeric" aria-label="كمية {{ m.name }}">
+          <button type="button" data-step="1" aria-label="زيادة">+</button>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="hint">القائمة فارغة. أضف الأصناف من تبويب <a href="{{ url_for('admin.menu') }}">القائمة</a>، أو اكتب صنفًا خاصًا أدناه.</p>
+    {% endif %}
+
+    <h3>أصناف خاصة (غير موجودة في القائمة)</h3>
+    <div class="custom-rows" id="customRows">
+      {% for c in custom + [{'name': '', 'unit_price_cents': None, 'qty': ''}] %}
+      <div class="custom-row" data-custom>
+        <input class="field" name="custom_name" placeholder="اسم الصنف" value="{{ c.name }}" aria-label="اسم الصنف الخاص">
+        <input class="field" name="custom_price" type="number" inputmode="decimal" min="0" step="0.5" dir="ltr" placeholder="السعر $" value="{{ '%.2f'|format(c.unit_price_cents / 100) if c.unit_price_cents is not none }}" aria-label="السعر">
+        <input class="field" name="custom_qty" type="number" inputmode="numeric" min="0" max="99" dir="ltr" placeholder="الكمية" value="{{ c.qty }}" aria-label="الكمية">
+      </div>
+      {% endfor %}
+    </div>
+    <div><button type="button" class="btn sm" id="addCustom">+ صنف خاص آخر</button></div>
+  </section>
+
+  <section class="panel">
+    <h3>الموعد</h3>
+    <div class="grid2">
+      <label class="f">اليوم<input name="order_date" type="date" value="{{ o.order_date }}"></label>
+      <label class="f">الوقت<input id="f-time" name="pickup_time" type="time" step="900" value="{{ o.pickup_time }}"></label>
+    </div>
+    <div class="row">
+      {% for s in slots %}<button type="button" class="chip {{ 'on' if o.pickup_time == s }}" data-time="{{ s }}">{{ s|time }}</button>{% endfor %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>ملاحظات</h3>
+    <label class="f"><span class="sr">ملاحظات</span><textarea name="notes" placeholder="مثال: بدون بصل، الحار على جنب، يتصل عند الوصول">{{ o.notes }}</textarea></label>
+    <div class="grid2">
+      <label class="check"><input type="checkbox" name="paid" value="1" {{ 'checked' if o.paid }}> تم الدفع</label>
+      {% if o.id %}
+      <label class="f">حالة الطلب
+        <select name="status" class="field">{% for k, label in STATUSES.items() %}<option value="{{ k }}" {{ 'selected' if o.status == k }}>{{ label }}</option>{% endfor %}</select>
+      </label>
+      {% else %}<input type="hidden" name="status" value="new">{% endif %}
+    </div>
+  </section>
+
+  <div class="savebar">
+    <div class="sum"><span id="count">لا أصناف بعد</span><b id="total">$0.00</b></div>
+    <button type="submit" class="btn primary big">حفظ الطلب</button>
+  </div>
+</form>
+{% endblock %}

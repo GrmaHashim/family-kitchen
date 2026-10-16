@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}إعداد أول مرة · {{ S.kitchen_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+{% block body %}
+<div class="wrap narrow">
+  <form method="post" class="panel auth">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="brand"><span class="mark" aria-hidden="true">م</span><span class="t">أهلًا بك</span></div>
+    <p class="hint" style="margin:0">أنشئ الحساب الأول للوحة التحكم. تختفي هذه الصفحة بعد إنشائه، ويمكنك إضافة حسابات بقية الأسرة من الإعدادات.</p>
+    {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+    <label class="f">اسمك كما يظهر على الطلبات<input name="display_name" placeholder="مثال: محمد" required></label>
+    <label class="f">اسم المستخدم (بالإنجليزية)<input name="username" autocomplete="username" dir="ltr" placeholder="mohamed" required></label>
+    <label class="f">كلمة المرور (8 أحرف على الأقل)<input name="password" type="password" autocomplete="new-password" dir="ltr" minlength="8" required></label>
+    <button class="btn primary big wide">إنشاء الحساب</button>
+  </form>
+</div>
+{% endblock %}

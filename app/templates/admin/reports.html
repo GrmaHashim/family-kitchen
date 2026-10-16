@@ -1,0 +1,43 @@
+{% extends "admin/base.html" %}
+{% set active = 'reports' %}
+{% block title %}التقارير · {{ S.kitchen_name }}{% endblock %}
+{% block main %}
+<div class="daybar">
+  <div class="seg">
+    <a href="{{ url_for('admin.reports', days=7) }}" class="{{ 'on' if r.days == 7 }}">آخر 7 أيام</a>
+    <a href="{{ url_for('admin.reports', days=30) }}" class="{{ 'on' if r.days == 30 }}">آخر 30 يومًا</a>
+  </div>
+  <h2 class="dayh">{{ r.start|short_date }} – {{ r.end|short_date }}</h2>
+</div>
+<div class="kpis">
+  <div class="kpi"><span>المبيعات</span><b>{{ r.sales|money }}</b></div>
+  <div class="kpi"><span>عدد الطلبات</span><b>{{ r.count }}</b></div>
+  <div class="kpi"><span>متوسط الطلب</span><b>{{ r.average|money }}</b></div>
+  <div class="kpi {{ 'warn' if r.unpaid_total }}"><span>لم يُحصَّل بعد</span><b>{{ r.unpaid_total|money }}</b></div>
+</div>
+{% set mx = (r.per_day|map(attribute='cents')|max) or 1 %}
+{% set best = r.per_day|sort(attribute='cents', reverse=true)|first %}
+<div class="list chart">
+  <div class="chart-cap"><span>المبيعات اليومية</span><span>{% if best.cents %}أعلى يوم: {{ best.cents|money }} ({{ best.date|short_date }}){% else %}لا مبيعات في هذه الفترة{% endif %}</span></div>
+  <div class="bars" role="img" aria-label="المبيعات اليومية">
+    {% for d in r.per_day %}<div class="b {{ 'today' if d.date == today_date }}" title="{{ d.date|short_date }}: {{ d.cents|money }}"><i style="height: {{ '%.1f'|format(d.cents * 100 / mx) }}%"></i></div>{% endfor %}
+  </div>
+  <div class="blabels">{% for d in r.per_day %}<span>{{ d.date.day if r.days == 7 or loop.index0 % 5 == 0 or loop.last }}</span>{% endfor %}</div>
+</div>
+<div class="rgrid">
+  <div class="list"><h3>الأصناف الأكثر مبيعًا</h3>
+    {% set tmax = (r.top_items|map(attribute='revenue')|max) if r.top_items else 1 %}
+    {% for t in r.top_items %}
+    <div class="irow"><div class="nm"><span>{{ t.name }}</span><div class="hbar"><i style="width: {{ '%.1f'|format(t.revenue * 100 / (tmax or 1)) }}%"></i></div></div><span class="r">{{ t.qty }}×</span><span class="r">{{ t.revenue|money }}</span></div>
+    {% else %}<div class="irow"><span class="r">لا بيانات بعد</span></div>{% endfor %}
+  </div>
+  <div class="list"><h3>من أين تأتي الطلبات</h3>
+    {% for src, n in r.sources %}
+    <div class="irow"><div class="nm"><span>{{ SOURCES.get(src, src) }}</span><div class="hbar"><i style="width: {{ '%.1f'|format(n * 100 / r.count) }}%"></i></div></div><span class="r">{{ n }}</span><span class="r">{{ (n * 100 / r.count)|round|int }}%</span></div>
+    {% else %}<div class="irow"><span class="r">لا بيانات بعد</span></div>{% endfor %}
+    {% if r.unpaid %}<h3>مبالغ لم تُحصَّل</h3>
+      {% for o in r.unpaid %}<div class="irow"><div class="nm"><a href="{{ url_for('admin.orders', date=o.order_date, status='all') }}#order-{{ o.id }}">#{{ o.number }} {{ o.customer_name }} · {{ o.order_date|day_label }}</a></div><span class="r"></span><span class="r">{{ o.total_cents|money }}</span></div>{% endfor %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

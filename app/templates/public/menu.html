@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block head %}<meta name="description" content="{{ S.tagline }}">{% endblock %}
+{% block body %}
+{% set sel_day = form.get('order_date') or default_day %}
+{% set sel_ful = form.get('fulfillment', 'pickup') %}
+<div class="wrap narrow">
+  <header class="hero">
+    <a class="brand" href="{{ url_for('public.menu') }}"><span class="mark" aria-hidden="true">{{ S.kitchen_name[:1] }}</span></a>
+    <h1>{{ S.kitchen_name }}</h1>
+    {% if S.tagline %}<p>{{ S.tagline }}</p>{% endif %}
+  </header>
+
+  {% if S.announcement %}<div class="notice">{{ S.announcement }}</div>{% endif %}
+
+  {% if S.accepting_orders != '1' %}
+    <div class="empty" style="margin-top:16px">
+      <strong>استقبال الطلبات متوقف حاليًا</strong>
+      <span>نعود قريبًا إن شاء الله.{% if S.kitchen_phone %} للتواصل: <span dir="ltr">{{ S.kitchen_phone }}</span>{% endif %}</span>
+    </div>
+  {% elif not groups %}
+    <div class="empty" style="margin-top:16px"><strong>القائمة قيد التجهيز</strong><span>عُد لاحقًا لترى أصناف اليوم.</span></div>
+  {% else %}
+  <form method="post" action="{{ url_for('public.place_order') }}" class="form" id="orderForm" novalidate>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="sr" aria-hidden="true"><label>اتركه فارغًا<input name="website" tabindex="-1" autocomplete="off"></label></div>
+
+    {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+
+    {% for cat, items in groups %}
+    <section class="cat">
+      <h2>{{ cat }}</h2>
+      <div class="dishes">
+        {% for m in items %}{% set q = form.get('qty_' ~ m.id, '0') %}
+        <div class="dish {{ 'off' if not m.available }} {{ 'on' if q not in ('', '0') }}" data-price="{{ m.price_cents }}">
+          <span class="nm">{{ m.name }}</span>
+          {% if m.available %}
+          <div class="stepper">
+            <button type="button" data-step="-1" aria-label="إنقاص {{ m.name }}">−</button>
+            <input type="number" name="qty_{{ m.id }}" value="{{ q }}" min="0" max="99" inputmode="numeric" aria-label="كمية {{ m.name }}">
+            <button type="button" data-step="1" aria-label="زيادة {{ m.name }}">+</button>
+          </div>
+          {% else %}<span class="soldout">نفد اليوم</span>{% endif %}
+          {% if m.description %}<span class="ds">{{ m.description }}</span>{% endif %}
+          <span class="pr">{{ m.price_cents|money }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+
+    <section class="panel" style="margin-top:20px">
+      <h3>بياناتك</h3>
+      <div class="grid2">
+        <label class="f">الاسم<input name="customer_name" autocomplete="name" value="{{ form.get('customer_name', '') }}" required></label>
+        <label class="f">رقم الجوال<input name="phone" type="tel" inputmode="tel" dir="ltr" autocomplete="tel" placeholder="403 555 0123" value="{{ form.get('phone', '') }}" required></label>
+      </div>
+      <div class="seg" role="radiogroup" aria-label="طريقة الاستلام">
+        <label><input type="radio" name="fulfillment" value="pickup" {{ 'checked' if sel_ful != 'delivery' }}><span>استلام</span></label>
+        {% if S.delivery_enabled == '1' %}<label><input type="radio" name="fulfillment" value="delivery" {{ 'checked' if sel_ful == 'delivery' }}><span>توصيل (+{{ delivery_fee|money }})</span></label>{% endif %}
+      </div>
+      {% if S.pickup_address %}<p class="hint" id="pickupHint" style="margin:0">مكان الاستلام: {{ S.pickup_address }}</p>{% endif %}
+      <div id="deliveryWrap" class="form" {{ 'hidden' if sel_ful != 'delivery' }}>
+        <label class="f">عنوان التوصيل<input name="address" autocomplete="street-address" placeholder="الحي، الشارع، رقم البيت" value="{{ form.get('address', '') }}"></label>
+        {% if S.delivery_note %}<p class="hint" style="margin:0">{{ S.delivery_note }}</p>{% endif %}
+      </div>
+    </section>
+
+    <section class="panel">
+      <h3>الموعد</h3>
+      <div class="row" role="radiogroup" aria-label="اليوم">
+        {% for d in days %}
+        <label class="chip"><input type="radio" name="order_date" value="{{ d.isoformat() }}" {{ 'checked' if d.isoformat() == sel_day }}>{{ d|day_label }}</label>
+        {% endfor %}
+      </div>
+      <label class="f">الوقت
+        <select name="pickup_time" id="slotSelect" class="field" data-selected="{{ form.get('pickup_time', '') }}">
+          {% for s in slots.get(sel_day, []) %}<option value="{{ s }}" {{ 'selected' if s == form.get('pickup_time') }}>{{ s|time }}</option>{% endfor %}
+        </select>
+      </label>
+      <p class="hint" id="noSlots" style="margin:0" {{ 'hidden' if slots.get(sel_day) }}>لا توجد مواعيد متبقية في هذا اليوم، اختر يومًا آخر.</p>
+      <label class="f">ملاحظات (اختياري)<textarea name="notes" placeholder="مثال: بدون بصل، الحار على جنب">{{ form.get('notes', '') }}</textarea></label>
+    </section>
+
+    <div class="savebar">
+      <div class="sum"><span id="count">اختر من القائمة</span><b id="total">$0.00</b></div>
+      <button type="submit" class="btn primary big">أرسل الطلب</button>
+    </div>
+    <p class="hint">الدفع عند الاستلام. سنتواصل معك على الجوال لتأكيد الطلب.{% if min_order %} الحد الأدنى للطلب {{ min_order|money }}.{% endif %}</p>
+  </form>
+  <script type="application/json" id="slotData">{{ slots|tojson }}</script>
+  <script type="application/json" id="feeData">{{ delivery_fee|tojson }}</script>
+  {% endif %}
+
+  <p class="foot">{{ S.kitchen_name }}{% if S.kitchen_phone %} · <span dir="ltr">{{ S.kitchen_phone }}</span>{% endif %}</p>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/order.js') }}"></script>{% endblock %}

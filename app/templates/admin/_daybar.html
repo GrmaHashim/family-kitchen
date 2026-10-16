@@ -1,0 +1,13 @@
+{# expects: day, endpoint, timedelta #}
+<div class="daybar">
+  <div class="seg">
+    {% for n, label in [(-1, 'أمس'), (0, 'اليوم'), (1, 'غدًا')] %}{% set d = (today_date + timedelta(days=n)) %}
+      <a href="{{ url_for(endpoint, date=d.isoformat(), **extra) }}" class="{{ 'on' if d == day }}">{{ label }}</a>
+    {% endfor %}
+  </div>
+  <form method="get" action="{{ url_for(endpoint) }}" class="inline">
+    {% for k, v in extra.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <label><span class="sr">اختر تاريخًا</span><input type="date" name="date" value="{{ day.isoformat() }}" data-autosubmit></label>
+  </form>
+  <h2 class="dayh">{{ day|date_ar }}</h2>
+</div>

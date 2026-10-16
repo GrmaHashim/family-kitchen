@@ -1,0 +1,21 @@
+# One-click deploy on Render (https://render.com). Set DATABASE_URL in the dashboard.
+services:
+  - type: web
+    name: family-kitchen
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --preload --workers 2 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: KITCHEN_TZ
+        value: America/Edmonton
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: FLASK_ENV
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.12.7"

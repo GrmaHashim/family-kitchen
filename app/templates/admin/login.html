@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}دخول · {{ S.kitchen_name }}{% endblock %}
+{% block head %}<meta name="robots" content="noindex">{% endblock %}
+{% block body %}
+<div class="wrap narrow">
+  <form method="post" class="panel auth">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="brand"><span class="mark" aria-hidden="true">{{ S.kitchen_name[:1] }}</span><span class="t">{{ S.kitchen_name }}</span></div>
+    <h3>دخول أفراد العائلة</h3>
+    {% if error %}<div class="alert" role="alert">{{ error }}</div>{% endif %}
+    <label class="f">اسم المستخدم<input name="username" autocomplete="username" dir="ltr" autofocus required></label>
+    <label class="f">كلمة المرور<input name="password" type="password" autocomplete="current-password" dir="ltr" required></label>
+    <button class="btn primary big wide">دخول</button>
+  </form>
+</div>
+{% endblock %}

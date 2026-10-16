@@ -1,0 +1,89 @@
+{% extends "admin/base.html" %}
+{% set active = 'orders' %}
+{% block title %}الطلبات · {{ S.kitchen_name }}{% endblock %}
+{% macro post(action, label, cls='btn', to=None) -%}
+<form method="post" action="{{ action }}" class="inline">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <input type="hidden" name="back" value="{{ request.full_path }}">
+  {% if to %}<input type="hidden" name="to" value="{{ to }}">{% endif %}
+  <button class="{{ cls }}">{{ label }}</button>
+</form>
+{%- endmacro %}
+{% block main %}
+{% with endpoint='admin.orders', extra={'status': flt} %}{% include "admin/_daybar.html" %}{% endwith %}
+
+<div class="newbanner" id="newBanner" data-latest="{{ latest_id }}" hidden>
+  <span id="newText">وصل طلب جديد من الموقع</span>
+  <a class="btn sm" href="{{ request.full_path }}">عرض</a>
+</div>
+
+<div class="strip">
+  <span><b class="num">{{ live_count }}</b> طلب</span>
+  <span>المبيعات <b class="money">{{ sales|money }}</b></span>
+  {% if unpaid %}<span class="warn">لم يُدفع بعد <b class="money">{{ unpaid|money }}</b></span>{% endif %}
+</div>
+
+<div class="filters">
+  {% set chips = [('active', 'النشطة', active_count), ('all', 'الكل', total_count)] %}
+  {% for key, label, n in chips %}<a class="chip {{ 'on' if flt == key }}" href="{{ url_for('admin.orders', date=day.isoformat(), status=key) }}">{{ label }}<span class="n">{{ n }}</span></a>{% endfor %}
+  {% for key, label in STATUSES.items() if counts.get(key) %}<a class="chip {{ 'on' if flt == key }}" href="{{ url_for('admin.orders', date=day.isoformat(), status=key) }}">{{ label }}<span class="n">{{ counts[key] }}</span></a>{% endfor %}
+</div>
+
+{% if not total_count %}
+  <div class="empty"><strong>لا طلبات {{ 'اليوم' if day == today_date else 'في هذا اليوم' }} بعد</strong><span>سجّل أول طلب، سواء جاء بمكالمة أو رسالة.</span><a class="btn primary" href="{{ url_for('admin.new_order', date=day.isoformat()) }}">+ طلب جديد</a></div>
+{% elif not orders %}
+  <div class="empty"><strong>لا طلبات في هذا التصنيف</strong><span>{{ total_count }} طلب في هذا اليوم.</span><a class="btn" href="{{ url_for('admin.orders', date=day.isoformat(), status='all') }}">عرض كل الطلبات</a></div>
+{% else %}
+<div class="orders">
+  {% for o in orders %}
+  {% set handed = 'تم التوصيل' if o.fulfillment == 'delivery' else 'تم الاستلام' %}
+  <article class="order s-{{ o.status }}" id="order-{{ o.id }}">
+    <div class="o-head">
+      <span class="o-num">#{{ o.number }}</span>
+      <span class="o-time {{ 'none' if not o.pickup_time }}">{{ o.pickup_time|time if o.pickup_time else 'بدون وقت' }}</span>
+      <span class="st">{{ handed if o.status == 'done' else STATUSES[o.status] }}</span>
+    </div>
+    <div class="o-cust">
+      <b>{{ o.customer_name or 'بدون اسم' }}</b>
+      {% if o.phone %}<span class="phone" dir="ltr">{{ o.phone_display }}</span>{% endif %}
+      <span class="tag {{ 'delivery' if o.fulfillment == 'delivery' }}">{{ FULFILLMENT[o.fulfillment] }}</span>
+      <span class="tag {{ 'web' if o.source == 'web' }}">{{ SOURCES.get(o.source, 'أخرى') }}</span>
+    </div>
+    {% if o.fulfillment == 'delivery' and o.address %}<div class="o-addr">{{ o.address }}</div>{% endif %}
+    <ul class="o-items">
+      {% for i in o['items'] %}<li><span class="q">{{ i.qty }}×</span><span>{{ i.name }}</span><span class="p">{{ (i.qty * i.unit_price_cents)|money }}</span></li>{% endfor %}
+      {% if o.fulfillment == 'delivery' and o.delivery_fee_cents %}<li><span class="q"></span><span>رسوم التوصيل</span><span class="p">{{ o.delivery_fee_cents|money }}</span></li>{% endif %}
+    </ul>
+    {% if o.notes %}<div class="o-notes">{{ o.notes }}</div>{% endif %}
+    <div class="o-foot">
+      <span class="o-total">{{ o.total_cents|money }}</span>
+      {% if o.status != 'cancelled' %}{{ post(url_for('admin.toggle_paid', order_id=o.id), '✓ مدفوع' if o.paid else 'غير مدفوع', 'paybtn paid' if o.paid else 'paybtn') }}{% endif %}
+    </div>
+
+    {% if confirm_id == o.id and confirm == 'cancel' %}
+      <div class="confirmbox">إلغاء الطلب #{{ o.number }}؟
+        {{ post(url_for('admin.change_status', order_id=o.id), 'نعم، ألغِه', 'btn sm danger', 'cancelled') }}
+        <a class="btn sm" href="{{ url_for('admin.orders', date=day.isoformat(), status=flt) }}#order-{{ o.id }}">تراجع</a></div>
+    {% elif confirm_id == o.id and confirm == 'delete' %}
+      <div class="confirmbox">حذف الطلب نهائيًا؟
+        {{ post(url_for('admin.delete_order', order_id=o.id), 'نعم، احذفه', 'btn sm danger') }}
+        <a class="btn sm" href="{{ url_for('admin.orders', date=day.isoformat(), status=flt) }}#order-{{ o.id }}">تراجع</a></div>
+    {% elif o.status == 'cancelled' %}
+      <div class="o-actions">
+        {{ post(url_for('admin.change_status', order_id=o.id), 'إعادة الطلب', 'btn sm', 'new') }}
+        <a class="btn sm ghost" href="{{ url_for('admin.orders', date=day.isoformat(), status=flt, confirm='delete', id=o.id) }}#order-{{ o.id }}">حذف نهائي</a>
+      </div>
+    {% else %}
+      <div class="o-actions">
+        {% if NEXT_STATUS.get(o.status) %}<div class="grow">{{ post(url_for('admin.change_status', order_id=o.id), handed if o.status == 'ready' else NEXT_ACTION[o.status], 'btn primary', 'next') }}</div>{% endif %}
+        {% if o.wa_link %}<a class="btn" href="{{ o.wa_link }}" target="_blank" rel="noopener">واتساب</a>{% endif %}
+        <a class="btn" href="{{ url_for('admin.edit_order', order_id=o.id) }}">تعديل</a>
+        {% if o.status != 'done' %}<a class="btn ghost" href="{{ url_for('admin.orders', date=day.isoformat(), status=flt, confirm='cancel', id=o.id) }}#order-{{ o.id }}">إلغاء</a>{% endif %}
+      </div>
+    {% endif %}
+    <div class="o-meta">{% if o.created_by and users.get(o.created_by) %}سجّله: {{ users[o.created_by] }}{% elif o.source == 'web' %}طلبه الزبون من الموقع{% endif %}</div>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
