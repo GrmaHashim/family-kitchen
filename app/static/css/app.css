@@ -93,6 +93,8 @@ input[type="date"], input[type="time"] { min-height: 40px; border: 1px solid var
 .newbanner { display: flex; align-items: center; gap: 10px; background: var(--st-new-bg); color: var(--st-new); padding: 10px 14px; border-radius: 12px; font-weight: 700; margin-bottom: 12px; }
 .newbanner .btn { margin-inline-start: auto; }
 
+.upcoming { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; background: var(--saffron-soft); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+.upcoming .chip { background: var(--surface); color: var(--ink); }
 .filters { display: flex; gap: 6px; overflow-x: auto; padding-block: 2px 12px; scrollbar-width: none; }
 .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 4px 12px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; color: var(--muted); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
 .chip .n { opacity: .75; font-variant-numeric: tabular-nums; }

@@ -302,6 +302,16 @@ def whatsapp_message(o):
             f"المجموع: {total}\nالموعد: {when} ({how})\nشكرًا لك")
 
 
+def upcoming_days(exclude_day, days=7):
+    """Active order counts per date from today onward (excluding the day being viewed)."""
+    start = today()
+    end = start + timedelta(days=days)
+    rows = db.query("SELECT order_date, COUNT(*) AS n FROM orders WHERE order_date >= ? AND order_date <= ? "
+                    "AND status IN ('new', 'confirmed', 'preparing', 'ready') GROUP BY order_date ORDER BY order_date",
+                    (start.isoformat(), end.isoformat()))
+    return [(r["order_date"], r["n"]) for r in rows if r["order_date"] != exclude_day]
+
+
 def new_web_orders_since(last_id):
     return db.scalar("SELECT COUNT(*) AS n FROM orders WHERE id > ? AND source = 'web'", (last_id,)) or 0
 

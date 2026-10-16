@@ -23,6 +23,13 @@
   {% if unpaid %}<span class="warn">لم يُدفع بعد <b class="money">{{ unpaid|money }}</b></span>{% endif %}
 </div>
 
+{% if upcoming %}
+<div class="upcoming">
+  <span>طلبات في أيام أخرى:</span>
+  {% for d, n in upcoming %}<a class="chip" href="{{ url_for('admin.orders', date=d) }}">{{ d|day_label }}<span class="n">{{ n }}</span></a>{% endfor %}
+</div>
+{% endif %}
+
 <div class="filters">
   {% set chips = [('active', 'النشطة', active_count), ('all', 'الكل', total_count)] %}
   {% for key, label, n in chips %}<a class="chip {{ 'on' if flt == key }}" href="{{ url_for('admin.orders', date=day.isoformat(), status=key) }}">{{ label }}<span class="n">{{ n }}</span></a>{% endfor %}

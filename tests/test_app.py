@@ -154,6 +154,13 @@ class DashboardTests(KitchenTestCase):
         self.assertIn("صينية محشي", page)
         self.assertIn("سجّله: محمد", page)
 
+    def test_dashboard_points_to_orders_on_other_days(self):
+        self.web_order()  # tomorrow
+        self.setup_account()
+        html = self.client.get("/admin/").get_data(as_text=True)
+        self.assertIn("طلبات في أيام أخرى", html)
+        self.assertIn(f"date={self.tomorrow}", html)
+
     def test_customer_lookup_and_repeat(self):
         self.web_order()
         self.setup_account()

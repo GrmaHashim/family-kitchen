@@ -126,6 +126,7 @@ def orders():
         live_count=len(live), sales=sum(o["total_cents"] for o in live),
         unpaid=sum(o["total_cents"] for o in live if not o["paid"]),
         users=_user_names(), latest_id=services.latest_order_id(),
+        upcoming=services.upcoming_days(day.isoformat()),
         confirm=request.args.get("confirm"), confirm_id=parse_int(request.args.get("id"), None),
         timedelta=timedelta,
     )
