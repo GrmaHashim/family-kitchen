@@ -1,0 +1,68 @@
+{% extends "admin/base.html" %}
+{% set active = 'costs' %}
+{% block title %}وصفة {{ dish.name }} · {{ S.kitchen_name }}{% endblock %}
+{% macro qty(n) %}{{ ('%.3f'|format(n)).rstrip('0').rstrip('.') }}{% endmacro %}
+{% block main %}
+<div class="formhead">
+  <a class="btn ghost" href="{{ url_for('admin.costs') }}">→ رجوع</a>
+  <h2>وصفة: {{ dish.name }}</h2>
+</div>
+<p class="hint">اكتب كمية كل مكوّن لحصة واحدة من هذا الصنف، كما يُباع للزبون. تُحسب التكلفة من متوسط أسعار مشترياتك، وتُخصم الكميات من المخزون عند تسليم الطلب.</p>
+
+<div class="kpis">
+  <div class="kpi"><span>سعر البيع</span><b>{{ dish.price_cents|money }}</b></div>
+  <div class="kpi"><span>تكلفة الحصة</span><b>{{ dish.total_cost|round|int|money }}</b></div>
+  <div class="kpi good"><span>الربح للحصة</span><b>{{ dish.profit|round|int|money }}</b></div>
+  <div class="kpi"><span>نسبة التكلفة</span><b>{{ dish.cost_pct|round|int }}%</b></div>
+</div>
+
+<div class="list">
+  <h3>المكوّنات</h3>
+  {% for l in lines %}
+  <div class="irow reciperow">
+    <div class="nm"><span><b>{{ l.name }}</b></span></div>
+    <form method="post" class="qtyform">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="line"><input type="hidden" name="ingredient_id" value="{{ l.ingredient_id }}">
+      <input class="field" name="qty" type="number" min="0" step="any" dir="ltr" value="{{ qty(l.qty) }}" aria-label="الكمية"><span class="muted">{{ l.unit_label }}</span>
+      <button class="btn sm">حفظ</button>
+    </form>
+    <span class="r">{{ l.cost|round|int|money }}</span>
+    <form method="post" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="remove"><input type="hidden" name="ingredient_id" value="{{ l.ingredient_id }}">
+      <button class="btn sm ghost" aria-label="إزالة {{ l.name }}">إزالة</button>
+    </form>
+  </div>
+  {% else %}
+  <div class="irow"><span class="muted">لا مكوّنات بعد. أضف أول مكوّن من الأسفل.</span></div>
+  {% endfor %}
+  {% if choices %}
+  <form method="post" class="addline">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="line">
+    <select class="field" name="ingredient_id" aria-label="المكوّن" required>
+      <option value="">أضف مكوّنًا…</option>
+      {% for i in choices %}<option value="{{ i.id }}">{{ i.name }} ({{ i.unit_label }})</option>{% endfor %}
+    </select>
+    <input class="field" name="qty" type="number" min="0" step="any" dir="ltr" placeholder="الكمية للحصة" aria-label="الكمية" required>
+    <button class="btn primary">إضافة</button>
+  </form>
+  {% elif not lines %}
+  <p class="hint" style="padding:0 14px">لا توجد مكوّنات مسجّلة. أضفها أولًا من تبويب <a href="{{ url_for('admin.inventory_page') }}">المخزون</a>.</p>
+  {% endif %}
+</div>
+
+<div class="grid2" style="margin-top:16px; align-items:start">
+  <form method="post" class="panel">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="extra">
+    <h3>تكاليف أخرى للحصة</h3>
+    <label class="f">العلبة، الكيس، الغاز… ($)<input class="field" name="extra_cost" type="number" min="0" step="0.01" dir="ltr" value="{{ '%.2f'|format(dish.extra_cost_cents / 100) }}"></label>
+    <div><button class="btn sm">حفظ</button></div>
+  </form>
+  <form method="post" class="panel">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="price">
+    <h3>سعر البيع</h3>
+    {% if dish.suggested %}<p class="hint" style="margin:0">السعر المقترح لتكون التكلفة {{ target }}% من السعر: <b>{{ dish.suggested|round|int|money }}</b></p>{% endif %}
+    <label class="f">السعر الحالي ($)<input class="field" name="price" type="number" min="0" step="0.5" dir="ltr" value="{{ '%.2f'|format(dish.price_cents / 100) }}"></label>
+    <div><button class="btn sm">تحديث السعر</button></div>
+  </form>
+</div>
+{% endblock %}

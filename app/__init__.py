@@ -29,6 +29,7 @@ def create_app(test_config=None):
         SESSION_COOKIE_SAMESITE="Lax",
         SESSION_COOKIE_SECURE=os.environ.get("SESSION_COOKIE_SECURE", "0") == "1",
         PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 30,
+        MAX_CONTENT_LENGTH=2 * 1024 * 1024,
     )
     if test_config:
         app.config.update(test_config)
@@ -108,6 +109,7 @@ def _register_template_helpers(app):
             "SOURCES": utils.SOURCES,
             "FULFILLMENT": utils.FULFILLMENT,
             "today_date": utils.today(),
+            "pending_reviews": lambda: db.scalar("SELECT COUNT(*) AS n FROM reviews WHERE status = 'pending'") or 0,
         }
 
 

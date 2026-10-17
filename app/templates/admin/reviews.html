@@ -1,0 +1,43 @@
+{% extends "admin/base.html" %}
+{% set active = 'reviews' %}
+{% block title %}التقييمات · {{ S.kitchen_name }}{% endblock %}
+{% block main %}
+<div class="formhead"><h2>تقييمات الزبائن</h2></div>
+<p class="hint">بعد تسليم أي طلب تظهر للزبون في صفحة متابعة الطلب خانة للتقييم. التقييمات الجديدة لا تظهر في صفحة الزبائن حتى تنشرها.</p>
+<div class="kpis">
+  <div class="kpi"><span>متوسط التقييم</span><b>{{ '%.1f'|format(stats.average) }} <small class="stars">★</small></b></div>
+  <div class="kpi"><span>عدد التقييمات</span><b>{{ stats.count }}</b></div>
+  <div class="kpi {{ 'warn' if counts.pending }}"><span>بانتظار المراجعة</span><b>{{ counts.pending }}</b></div>
+</div>
+<div class="filters">
+  {% for key, label in REVIEW_STATUSES.items() %}<a class="chip {{ 'on' if flt == key }}" href="{{ url_for('admin.reviews', status=key) }}">{{ label }}<span class="n">{{ counts[key] }}</span></a>{% endfor %}
+  <a class="chip {{ 'on' if flt == 'all' }}" href="{{ url_for('admin.reviews', status='all') }}">الكل</a>
+</div>
+{% macro act(r, action, label, cls) -%}
+<form method="post" action="{{ url_for('admin.review_update', review_id=r.id) }}" class="inline">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="{{ action }}"><input type="hidden" name="back" value="{{ flt }}">
+  <button class="{{ cls }}">{{ label }}</button>
+</form>
+{%- endmacro %}
+{% if items %}
+<div class="orders">
+  {% for r in items %}
+  <article class="order rv-{{ r.status }}">
+    <div class="o-head">
+      <span class="stars big" aria-label="{{ r.rating }} من 5">{{ '★' * r.rating }}{{ '☆' * (5 - r.rating) }}</span>
+      <span class="st">{{ REVIEW_STATUSES[r.status] }}</span>
+    </div>
+    {% if r.comment %}<div class="o-notes">{{ r.comment }}</div>{% else %}<div class="muted">بدون تعليق</div>{% endif %}
+    <div class="o-meta">{{ r.customer_name or 'زبون' }}{% if r.number %} · <a href="{{ url_for('admin.orders', date=r.order_date, status='all') }}">طلب #{{ r.number }} ({{ r.order_date|day_label }})</a>{% endif %}</div>
+    <div class="o-actions">
+      {% if r.status != 'published' %}{{ act(r, 'published', 'نشر في صفحة الزبائن', 'btn primary sm') }}{% endif %}
+      {% if r.status != 'hidden' %}{{ act(r, 'hidden', 'إخفاء', 'btn sm') }}{% endif %}
+      {{ act(r, 'delete', 'حذف', 'btn sm ghost') }}
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty"><strong>لا تقييمات هنا</strong><span>تصل التقييمات من الزبائن بعد تسليم طلباتهم.</span></div>
+{% endif %}
+{% endblock %}

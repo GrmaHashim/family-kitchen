@@ -1,4 +1,5 @@
 """End-to-end tests. Run with: python -m unittest discover tests   (or: pytest)"""
+import io
 import os
 import re
 import tempfile
@@ -243,6 +244,139 @@ class DashboardTests(KitchenTestCase):
         self.client.post("/admin/logout")
         r = self.client.post("/admin/login", data={"username": "umahmed", "password": "kitchen123"})
         self.assertEqual(r.status_code, 302)
+
+
+class V2FeatureTests(KitchenTestCase):
+    def setUp(self):
+        super().setUp()
+        self.setup_account()
+
+    def order_id(self):
+        with self.app.app_context():
+            return db.scalar("SELECT MAX(id) AS n FROM orders")
+
+    def test_categories_managed_from_settings(self):
+        self.client.post("/admin/categories", data={"name": "أطباق رئيسية"})
+        self.client.post("/admin/categories", data={"name": "مشروبات"})
+        with self.app.app_context():
+            cats = {c["name"]: c["id"] for c in services.categories()}
+            db.execute("UPDATE menu_items SET category = 'مشروبات' WHERE id = ?", (self.menu_ids[2],))
+            db.execute("UPDATE menu_items SET category = 'أطباق رئيسية' WHERE id != ?", (self.menu_ids[2],))
+            db.commit()
+        # Move drinks first, then check the customer page order
+        self.client.post(f"/admin/categories/{cats['مشروبات']}", data={"action": "up"})
+        html = self.client.get("/").get_data(as_text=True)
+        self.assertLess(html.index("مشروبات"), html.index("أطباق رئيسية"))
+        # Rename applies to dishes
+        self.client.post(f"/admin/categories/{cats['مشروبات']}", data={"action": "rename", "name": "عصائر"})
+        with self.app.app_context():
+            self.assertEqual(db.query("SELECT category FROM menu_items WHERE id = ?", (self.menu_ids[2],), one=True)["category"], "عصائر")
+        # Delete keeps the dish without a category
+        self.client.post(f"/admin/categories/{cats['مشروبات']}", data={"action": "delete"})
+        with self.app.app_context():
+            self.assertEqual(db.query("SELECT category FROM menu_items WHERE id = ?", (self.menu_ids[2],), one=True)["category"], "")
+        self.assertIn("كركدي", self.client.get("/").get_data(as_text=True))
+        self.assertEqual(self.client.get("/admin/settings").status_code, 200)
+        self.assertEqual(self.client.get("/admin/menu").status_code, 200)
+
+    def test_logo_upload_and_serve(self):
+        png = (b"\x89PNG\r\n\x1a\n" + b"0" * 100)
+        r = self.client.post("/admin/logo", data={"logo": (io.BytesIO(png), "logo.png", "image/png")},
+                             content_type="multipart/form-data")
+        self.assertEqual(r.status_code, 302)
+        html = self.client.get("/").get_data(as_text=True)
+        self.assertIn('class="logo lg"', html)
+        src = re.search(r'src="(/brand/logo\?v=[^"]+)"', html).group(1)
+        img = self.client.get(src)
+        self.assertEqual((img.status_code, img.mimetype, img.data), (200, "image/png", png))
+        # Non-images are refused
+        self.client.post("/admin/logo", data={"logo": (io.BytesIO(b"<svg/>"), "x.svg", "image/svg+xml")},
+                         content_type="multipart/form-data")
+        self.assertEqual(self.client.get(src).data, png)
+        self.client.post("/admin/logo/delete")
+        self.assertEqual(self.client.get("/brand/logo").status_code, 404)
+
+    def test_review_flow_with_moderation(self):
+        r = self.web_order()
+        token = r.headers["Location"].split("/o/")[1].split("?")[0]
+        oid = self.order_id()
+        # Not deliverable yet: no form, and posting is ignored
+        self.assertNotIn("كيف كان طلبك", self.client.get(f"/o/{token}").get_data(as_text=True))
+        self.client.post(f"/o/{token}/review", data={"rating": "5"})
+        with self.app.app_context():
+            self.assertEqual(db.scalar("SELECT COUNT(*) AS n FROM reviews"), 0)
+        self.client.post(f"/admin/orders/{oid}/status", data={"to": "done"})
+        self.assertIn("كيف كان طلبك", self.client.get(f"/o/{token}").get_data(as_text=True))
+        self.client.post(f"/o/{token}/review", data={"rating": "abc"})
+        self.client.post(f"/o/{token}/review", data={"rating": "4", "comment": "الكبسة ممتازة"})
+        self.client.post(f"/o/{token}/review", data={"rating": "1", "comment": "مكرر"})
+        with self.app.app_context():
+            rows = services.reviews()
+        self.assertEqual([(r["rating"], r["status"]) for r in rows], [(4, "pending")])
+        self.assertNotIn("الكبسة ممتازة", self.client.get("/").get_data(as_text=True))
+        self.assertIn('class="badge">1<', self.client.get("/admin/reviews").get_data(as_text=True))
+        self.client.post(f"/admin/reviews/{rows[0]['id']}", data={"action": "published"})
+        self.assertIn("الكبسة ممتازة", self.client.get("/").get_data(as_text=True))
+
+    def test_inventory_purchases_recipes_and_deduction(self):
+        self.client.post("/admin/ingredients", data={"name": "أرز", "unit": "kg", "opening_stock": "2", "low_stock": "1"})
+        self.client.post("/admin/ingredients", data={"name": "دجاج", "unit": "kg", "default_cost": "8"})
+        with self.app.app_context():
+            ing = {i["name"]: i["id"] for i in db.query("SELECT id, name FROM ingredients")}
+        # Buy 10 kg rice for $30 -> $3/kg; stock 12
+        self.client.post("/admin/purchases", data={"ingredient_id": ing["أرز"], "qty": "10", "cost": "30"})
+        # Recipe: kabsa = 0.25 kg rice + 0.5 kg chicken, plus $0.50 packaging
+        kabsa = self.menu_ids[0]
+        self.client.post(f"/admin/costs/{kabsa}", data={"action": "line", "ingredient_id": ing["أرز"], "qty": "0.25"})
+        self.client.post(f"/admin/costs/{kabsa}", data={"action": "line", "ingredient_id": ing["دجاج"], "qty": "0.5"})
+        self.client.post(f"/admin/costs/{kabsa}", data={"action": "extra", "extra_cost": "0.5"})
+        with self.app.app_context():
+            from app import inventory
+            d = next(x for x in inventory.dish_costs(35) if x["id"] == kabsa)
+        self.assertAlmostEqual(d["total_cost"], 75 + 400 + 50)  # cents
+        self.assertAlmostEqual(d["profit"], 1800 - 525)
+        self.assertAlmostEqual(d["suggested"], 525 / 0.35)
+        # Order 2 kabsa; delivered -> stock deducted; reverted -> restored
+        self.web_order()
+        oid = self.order_id()
+        prep = self.client.get(f"/admin/prep?date={self.tomorrow}").get_data(as_text=True)
+        self.assertIn("المكوّنات المطلوبة", prep)
+        self.client.post(f"/admin/orders/{oid}/status", data={"to": "done"})
+        self.client.post(f"/admin/orders/{oid}/status", data={"to": "done"})  # twice: no double deduction
+        with self.app.app_context():
+            from app import inventory
+            stock = inventory.stock_levels()
+        self.assertAlmostEqual(stock[ing["أرز"]], 12 - 0.5)
+        self.assertAlmostEqual(stock[ing["دجاج"]], -1.0)
+        self.client.post(f"/admin/orders/{oid}/status", data={"to": "cancelled"})
+        with self.app.app_context():
+            from app import inventory
+            self.assertAlmostEqual(inventory.stock_levels()[ing["أرز"]], 12)
+        # Stocktake sets the real count
+        self.client.post(f"/admin/ingredients/{ing['أرز']}", data={"action": "count", "counted": "11"})
+        with self.app.app_context():
+            from app import inventory
+            self.assertAlmostEqual(inventory.stock_levels()[ing["أرز"]], 11)
+        html = self.client.get("/admin/inventory").get_data(as_text=True)
+        self.assertIn("أرز", html)
+        self.assertEqual(self.client.get(f"/admin/inventory?edit={ing['أرز']}").status_code, 200)
+        self.assertEqual(self.client.get(f"/admin/costs/{kabsa}").status_code, 200)
+
+    def test_profit_report(self):
+        with self.app.app_context():
+            from app import inventory
+            rice = inventory.add_ingredient("أرز", "kg", 400, 0)
+            inventory.set_recipe_line(self.menu_ids[0], rice, 0.5)  # $2 per kabsa
+        self.web_order(order_date=utils_today(self.app), pickup_time=self.today_slot(),
+                       **{f"qty_{self.menu_ids[0]}": "2", f"qty_{self.menu_ids[1]}": "1"})
+        with self.app.app_context():
+            from app import inventory
+            p = inventory.profit_report(7, 35)
+        self.assertEqual((p["revenue"], p["cost"], p["uncosted"]), (3600 + 1200, 400, 1200))
+        self.assertAlmostEqual(p["margin"], (3600 - 400) / 3600 * 100)
+        html = self.client.get("/admin/costs").get_data(as_text=True)
+        self.assertIn("بدون وصفة", html)
+        self.assertEqual(self.client.get("/admin/costs?days=30").status_code, 200)
 
 
 class SecurityTests(unittest.TestCase):

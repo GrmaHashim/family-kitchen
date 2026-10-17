@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% from "_brand.html" import mark with context %}
 {% block head %}<meta name="description" content="{{ S.tagline }}">{% endblock %}
 {% block body %}
 {% set sel_day = form.get('order_date') or default_day %}
 {% set sel_ful = form.get('fulfillment', 'pickup') %}
 <div class="wrap narrow">
   <header class="hero">
-    <a class="brand" href="{{ url_for('public.menu') }}"><span class="mark" aria-hidden="true">{{ S.kitchen_name[:1] }}</span></a>
+    <a class="brand" href="{{ url_for('public.menu') }}">{{ mark('lg') }}</a>
     <h1>{{ S.kitchen_name }}</h1>
     {% if S.tagline %}<p>{{ S.tagline }}</p>{% endif %}
   </header>
@@ -89,6 +90,22 @@
   </form>
   <script type="application/json" id="slotData">{{ slots|tojson }}</script>
   <script type="application/json" id="feeData">{{ delivery_fee|tojson }}</script>
+  {% endif %}
+
+  {% if reviews %}
+  <section class="cat" id="reviews">
+    <h2>آراء زبائننا</h2>
+    <p class="muted" style="margin:0 0 10px"><span class="stars" aria-hidden="true">{{ '★' * (review_stats.average|round|int) }}{{ '☆' * (5 - (review_stats.average|round|int)) }}</span> {{ '%.1f'|format(review_stats.average) }} من 5 · {{ review_stats.count }} تقييم</p>
+    <div class="reviews">
+      {% for r in reviews %}
+      <figure class="review">
+        <div class="stars" aria-label="{{ r.rating }} من 5">{{ '★' * r.rating }}{{ '☆' * (5 - r.rating) }}</div>
+        {% if r.comment %}<blockquote>{{ r.comment }}</blockquote>{% endif %}
+        <figcaption>{{ r.customer_name or 'زبون' }}</figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+  </section>
   {% endif %}
 
   <p class="foot">{{ S.kitchen_name }}{% if S.kitchen_phone %} · <span dir="ltr">{{ S.kitchen_phone }}</span>{% endif %}</p>

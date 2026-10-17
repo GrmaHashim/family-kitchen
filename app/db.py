@@ -75,7 +75,67 @@ CREATE TABLE IF NOT EXISTS order_items (
     qty INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS categories (
+    id {pk},
+    name TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS ingredients (
+    id {pk},
+    name TEXT NOT NULL,
+    unit TEXT NOT NULL DEFAULT 'kg',
+    default_cost {real} NOT NULL DEFAULT 0,
+    low_stock {real} NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS purchases (
+    id {pk},
+    purchase_date TEXT NOT NULL,
+    ingredient_id INTEGER NOT NULL,
+    qty {real} NOT NULL,
+    cost_cents INTEGER NOT NULL,
+    supplier TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    created_by INTEGER,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS stock_moves (
+    id {pk},
+    ingredient_id INTEGER NOT NULL,
+    qty {real} NOT NULL,
+    reason TEXT NOT NULL,
+    order_id INTEGER,
+    purchase_id INTEGER,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS recipe_items (
+    id {pk},
+    menu_item_id INTEGER NOT NULL,
+    ingredient_id INTEGER NOT NULL,
+    qty {real} NOT NULL,
+    UNIQUE (menu_item_id, ingredient_id)
+);
+
+CREATE TABLE IF NOT EXISTS reviews (
+    id {pk},
+    order_id INTEGER NOT NULL UNIQUE,
+    customer_name TEXT NOT NULL DEFAULT '',
+    rating INTEGER NOT NULL,
+    comment TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_orders_date ON orders (order_date);
+CREATE INDEX IF NOT EXISTS idx_moves_ingredient ON stock_moves (ingredient_id);
+CREATE INDEX IF NOT EXISTS idx_moves_order ON stock_moves (order_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases (purchase_date);
 CREATE INDEX IF NOT EXISTS idx_orders_phone ON orders (phone);
 CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items (order_id);
 """
@@ -197,12 +257,36 @@ def is_integrity_error(exc):
     return "Integrity" in name or "UniqueViolation" in name
 
 
+def column_names(table):
+    if is_postgres():
+        rows = query("SELECT column_name FROM information_schema.columns WHERE table_name = ?", (table,))
+        return {r["column_name"] for r in rows}
+    return {r["name"] for r in query(f"PRAGMA table_info({table})")}
+
+
+def ensure_column(table, column, ddl):
+    """Add a column to an existing table (simple forward-only migration)."""
+    if column not in column_names(table):
+        execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
+
+
 def init_schema():
-    pk = "SERIAL PRIMARY KEY" if is_postgres() else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    postgres = is_postgres()
+    pk = "SERIAL PRIMARY KEY" if postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    real = "DOUBLE PRECISION" if postgres else "REAL"
     conn = get_db()
     cur = conn.cursor()
-    for stmt in SCHEMA.format(pk=pk).split(";"):
+    for stmt in SCHEMA.format(pk=pk, real=real).split(";"):
         if stmt.strip():
             cur.execute(stmt)
     cur.close()
+    conn.commit()
+
+    # Migrations for databases created by earlier versions
+    ensure_column("menu_items", "extra_cost_cents", "INTEGER NOT NULL DEFAULT 0")
+    # Turn categories typed on dishes into managed categories
+    for row in query("SELECT DISTINCT category FROM menu_items WHERE category != ''"):
+        if not query("SELECT id FROM categories WHERE name = ?", (row["category"],), one=True):
+            n = scalar("SELECT COUNT(*) AS n FROM categories") or 0
+            insert("categories", {"name": row["category"], "sort_order": n + 1})
     conn.commit()

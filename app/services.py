@@ -25,13 +25,17 @@ DEFAULT_SETTINGS = {
     "time_slots": "12:00,13:00,14:00,17:00,18:00,19:00,20:00",
     "days_ahead": "2",
     "lead_minutes": "90",
+    "target_food_cost": "35",
+    "logo_type": "",
+    "logo_version": "",
 }
 
 
 def get_settings():
     if "settings" not in g:
         values = dict(DEFAULT_SETTINGS)
-        for row in db.query("SELECT key, value FROM settings"):
+        # The logo image itself is large; it is loaded only by the logo route
+        for row in db.query("SELECT key, value FROM settings WHERE key != 'logo_data'"):
             values[row["key"]] = row["value"]
         g.settings = values
     return g.settings
@@ -39,7 +43,7 @@ def get_settings():
 
 def save_settings(values):
     for key, value in values.items():
-        if key not in DEFAULT_SETTINGS:
+        if key not in DEFAULT_SETTINGS and key != "logo_data":
             continue
         if db.execute("UPDATE settings SET value = ? WHERE key = ?", (value, key)) == 0:
             db.insert("settings", {"key": key, "value": value})
@@ -225,6 +229,8 @@ def save_order(fields, items, order_id=None, user_id=None):
             for item in items:
                 db.insert("order_items", {**item, "order_id": new_id})
             db.commit()
+            from .inventory import sync_order_stock
+            sync_order_stock(new_id)
             return new_id
         except Exception as exc:  # retry when two orders grab the same number
             db.rollback()
@@ -234,8 +240,10 @@ def save_order(fields, items, order_id=None, user_id=None):
 
 
 def set_status(order_id, status):
+    from .inventory import sync_order_stock
     db.execute("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?", (status, now_iso(), order_id))
     db.commit()
+    sync_order_stock(order_id)
 
 
 def toggle_paid(order_id):
@@ -244,6 +252,8 @@ def toggle_paid(order_id):
 
 
 def delete_order(order_id):
+    db.execute("DELETE FROM stock_moves WHERE order_id = ?", (order_id,))
+    db.execute("DELETE FROM reviews WHERE order_id = ?", (order_id,))
     db.execute("DELETE FROM order_items WHERE order_id = ?", (order_id,))
     db.execute("DELETE FROM orders WHERE id = ?", (order_id,))
     db.commit()
@@ -365,3 +375,129 @@ def report(days):
         "top_items": sorted(items.values(), key=lambda a: -a["revenue"])[:8],
         "sources": sorted(sources.items(), key=lambda kv: -kv[1]),
     }
+
+
+# ---------------------------------------------------------------- categories
+def categories():
+    rows = db.query("SELECT * FROM categories ORDER BY sort_order, id")
+    counts = {r["category"]: r["n"] for r in db.query("SELECT category, COUNT(*) AS n FROM menu_items GROUP BY category")}
+    return [{**c, "dishes": counts.get(c["name"], 0)} for c in rows]
+
+
+def add_category(name):
+    name = name.strip()[:60]
+    if not name:
+        raise ValueError("اكتب اسم التصنيف.")
+    if db.query("SELECT id FROM categories WHERE name = ?", (name,), one=True):
+        raise ValueError("هذا التصنيف موجود من قبل.")
+    n = db.scalar("SELECT MAX(sort_order) AS n FROM categories") or 0
+    db.insert("categories", {"name": name, "sort_order": n + 1})
+    db.commit()
+
+
+def rename_category(cat_id, new_name):
+    new_name = new_name.strip()[:60]
+    cat = db.query("SELECT * FROM categories WHERE id = ?", (cat_id,), one=True)
+    if not cat or not new_name or new_name == cat["name"]:
+        return
+    if db.query("SELECT id FROM categories WHERE name = ? AND id != ?", (new_name, cat_id), one=True):
+        raise ValueError("يوجد تصنيف آخر بهذا الاسم.")
+    db.execute("UPDATE categories SET name = ? WHERE id = ?", (new_name, cat_id))
+    db.execute("UPDATE menu_items SET category = ? WHERE category = ?", (new_name, cat["name"]))
+    db.commit()
+
+
+def delete_category(cat_id):
+    """Delete a category; its dishes stay on the menu without a category."""
+    cat = db.query("SELECT * FROM categories WHERE id = ?", (cat_id,), one=True)
+    if cat:
+        db.execute("UPDATE menu_items SET category = '' WHERE category = ?", (cat["name"],))
+        db.execute("DELETE FROM categories WHERE id = ?", (cat_id,))
+        db.commit()
+
+
+def move_category(cat_id, direction):
+    rows = db.query("SELECT id FROM categories ORDER BY sort_order, id")
+    ids = [r["id"] for r in rows]
+    if cat_id not in ids:
+        return
+    i = ids.index(cat_id)
+    j = i - 1 if direction == "up" else i + 1
+    if 0 <= j < len(ids):
+        ids[i], ids[j] = ids[j], ids[i]
+        for pos, cid in enumerate(ids, start=1):
+            db.execute("UPDATE categories SET sort_order = ? WHERE id = ?", (pos, cid))
+        db.commit()
+
+
+def category_order():
+    return {r["name"]: r["sort_order"] for r in db.query("SELECT name, sort_order FROM categories")}
+
+
+# ---------------------------------------------------------------- logo
+LOGO_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+
+
+def save_logo(data, mimetype):
+    import base64
+    save_settings({"logo_data": base64.b64encode(data).decode("ascii"), "logo_type": mimetype,
+                   "logo_version": now_iso().replace(":", "").replace("-", "")[:15]})
+
+
+def remove_logo():
+    db.execute("DELETE FROM settings WHERE key IN ('logo_data', 'logo_type', 'logo_version')")
+    db.commit()
+    g.pop("settings", None)
+
+
+def load_logo():
+    import base64
+    row = db.query("SELECT value FROM settings WHERE key = 'logo_data'", one=True)
+    if not row:
+        return None, None
+    return base64.b64decode(row["value"]), get_settings().get("logo_type") or "image/png"
+
+
+# ---------------------------------------------------------------- reviews
+REVIEW_STATUSES = {"pending": "بانتظار المراجعة", "published": "منشور", "hidden": "مخفي"}
+
+
+def review_for_order(order_id):
+    return db.query("SELECT * FROM reviews WHERE order_id = ?", (order_id,), one=True)
+
+
+def add_review(order, rating, comment):
+    if review_for_order(order["id"]):
+        raise ValueError("سبق أن قيّمت هذا الطلب، شكرًا لك.")
+    if order["status"] != "done":
+        raise ValueError("يمكنك التقييم بعد استلام الطلب.")
+    db.insert("reviews", {"order_id": order["id"], "customer_name": order["customer_name"],
+                          "rating": max(1, min(5, rating)), "comment": comment.strip()[:600],
+                          "status": "pending", "created_at": now_iso()})
+    db.commit()
+
+
+def reviews(status=None):
+    sql = ("SELECT r.*, o.number, o.order_date, o.phone FROM reviews r LEFT JOIN orders o ON o.id = r.order_id")
+    params = ()
+    if status:
+        sql += " WHERE r.status = ?"
+        params = (status,)
+    return db.query(sql + " ORDER BY r.created_at DESC", params)
+
+
+def set_review_status(review_id, status):
+    if status in REVIEW_STATUSES:
+        db.execute("UPDATE reviews SET status = ? WHERE id = ?", (status, review_id))
+        db.commit()
+
+
+def delete_review(review_id):
+    db.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
+    db.commit()
+
+
+def review_stats(published_only=False):
+    where = " WHERE status = 'published'" if published_only else ""
+    row = db.query(f"SELECT COUNT(*) AS n, AVG(rating) AS avg FROM reviews{where}", one=True)
+    return {"count": row["n"] or 0, "average": float(row["avg"] or 0)}

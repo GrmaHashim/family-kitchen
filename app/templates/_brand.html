@@ -1,0 +1,4 @@
+{# Business logo, or the first letter of the name when no logo is uploaded #}
+{% macro mark(size='') -%}
+{% if S.logo_version %}<img class="logo {{ size }}" src="{{ url_for('public.logo', v=S.logo_version) }}" alt="{{ S.kitchen_name }}">{% else %}<span class="mark {{ size }}" aria-hidden="true">{{ S.kitchen_name[:1] }}</span>{% endif %}
+{%- endmacro %}

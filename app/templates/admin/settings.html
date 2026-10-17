@@ -37,6 +37,58 @@
 </form>
 
 <div class="grid2" style="margin-top:16px; align-items:start">
+  <section class="panel" id="brand">
+    <h3>الشعار</h3>
+    <div class="brandrow">
+      {% if S.logo_version %}<img class="logo xl" src="{{ url_for('public.logo', v=S.logo_version) }}" alt="الشعار الحالي">{% else %}<span class="mark xl" aria-hidden="true">{{ S.kitchen_name[:1] }}</span>{% endif %}
+      <div class="muted">{{ 'يظهر الشعار بجانب اسم المطبخ في صفحة الزبائن ولوحة العائلة.' if S.logo_version else 'لا يوجد شعار بعد. يظهر الحرف الأول من اسم المطبخ مكانه.' }}</div>
+    </div>
+    <form method="post" action="{{ url_for('admin.logo_upload') }}" enctype="multipart/form-data" class="form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="f">صورة الشعار (PNG أو JPG أو WEBP، أقل من 600 كيلوبايت، ويُفضّل أن تكون مربعة)
+        <input class="field" type="file" name="logo" accept="image/png,image/jpeg,image/webp" required></label>
+      <div class="row"><button class="btn primary">رفع الشعار</button></div>
+    </form>
+    {% if S.logo_version %}
+    <form method="post" action="{{ url_for('admin.logo_delete') }}" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm ghost">إزالة الشعار</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <section class="panel" id="categories">
+    <h3>تصنيفات الأصناف</h3>
+    <p class="hint" style="margin:0">ترتيب التصنيفات هنا هو ترتيب ظهورها للزبائن. تغيير اسم التصنيف يُطبَّق على كل أصنافه.</p>
+    <div class="users">
+      {% for c in categories %}
+      <div class="urow">
+        <form method="post" action="{{ url_for('admin.category_update', cat_id=c.id) }}" class="catform">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="rename">
+          <input class="field" name="name" value="{{ c.name }}" aria-label="اسم التصنيف">
+          <button class="btn sm">حفظ</button>
+        </form>
+        <span class="muted nowrap">{{ c.dishes }} صنف</span>
+        {% if not loop.first %}<form method="post" action="{{ url_for('admin.category_update', cat_id=c.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="up"><button class="btn sm ghost" aria-label="تحريك لأعلى">↑</button></form>{% endif %}
+        {% if not loop.last %}<form method="post" action="{{ url_for('admin.category_update', cat_id=c.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="down"><button class="btn sm ghost" aria-label="تحريك لأسفل">↓</button></form>{% endif %}
+        {% if confirm_cat == c.id %}
+          <form method="post" action="{{ url_for('admin.category_update', cat_id=c.id) }}" class="inline"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="delete"><button class="btn sm danger">تأكيد الحذف</button></form>
+        {% else %}
+          <a class="btn sm ghost" href="{{ url_for('admin.settings', confirm_cat=c.id) }}#categories">حذف</a>
+        {% endif %}
+      </div>
+      {% else %}
+      <p class="muted" style="margin:0">لا توجد تصنيفات بعد.</p>
+      {% endfor %}
+    </div>
+    <form method="post" action="{{ url_for('admin.category_add') }}" class="catform">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input class="field" name="name" placeholder="تصنيف جديد، مثل: معجنات" aria-label="اسم التصنيف الجديد" required>
+      <button class="btn">إضافة</button>
+    </form>
+  </section>
+</div>
+
+<div class="grid2" style="margin-top:16px; align-items:start">
   <section class="panel" id="users">
     <h3>حسابات العائلة</h3>
     <div class="users">

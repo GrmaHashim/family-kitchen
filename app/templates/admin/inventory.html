@@ -1,0 +1,99 @@
+{% extends "admin/base.html" %}
+{% set active = 'inventory' %}
+{% block title %}المخزون · {{ S.kitchen_name }}{% endblock %}
+{% macro qty(n) %}{{ ('%.3f'|format(n)).rstrip('0').rstrip('.') if n != 0 else '0' }}{% endmacro %}
+{% block main %}
+<div class="formhead"><h2>المخزون والمشتريات</h2></div>
+<p class="hint">سجّل كل عملية شراء فتُضاف كميتها إلى المخزون. عند تسليم أي طلب تُخصم مكوّناته تلقائيًا حسب وصفة كل صنف (من تبويب «التكاليف والأرباح»). وفي الجرد اكتب الكمية الموجودة فعلًا ليُصحَّح الرصيد.</p>
+<div class="kpis">
+  <div class="kpi"><span>المكوّنات</span><b>{{ items|length }}</b></div>
+  <div class="kpi {{ 'warn' if low_count }}"><span>تحت الحد الأدنى</span><b>{{ low_count }}</b></div>
+  <div class="kpi"><span>قيمة المخزون التقريبية</span><b>{{ stock_value|round|int|money }}</b></div>
+</div>
+
+<section class="panel" id="purchases">
+  <h3>تسجيل مشتريات</h3>
+  {% if items %}
+  <form method="post" action="{{ url_for('admin.purchase_add') }}" class="buyform">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <label class="f">المكوّن<select class="field" name="ingredient_id" required>
+      <option value="">اختر…</option>
+      {% for i in items %}<option value="{{ i.id }}">{{ i.name }} ({{ i.unit_label }})</option>{% endfor %}
+    </select></label>
+    <label class="f">الكمية<input class="field" name="qty" type="number" inputmode="decimal" min="0" step="any" dir="ltr" required></label>
+    <label class="f">المبلغ المدفوع ($)<input class="field" name="cost" type="number" inputmode="decimal" min="0" step="0.01" dir="ltr" required></label>
+    <label class="f">التاريخ<input class="field" name="purchase_date" type="date" value="{{ today_iso }}"></label>
+    <label class="f">المتجر (اختياري)<input class="field" name="supplier" placeholder="مثال: Costco"></label>
+    <div class="buyform-btn"><button class="btn primary">تسجيل</button></div>
+  </form>
+  {% else %}
+  <p class="muted" style="margin:0">أضف المكوّنات أولًا من الأسفل، ثم سجّل مشترياتها هنا.</p>
+  {% endif %}
+</section>
+
+<div class="list" style="margin-top:16px">
+  <h3>المكوّنات</h3>
+  <form method="post" action="{{ url_for('admin.ingredient_add') }}" class="ingadd">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input class="field nmf" name="name" placeholder="مكوّن جديد، مثل: أرز بسمتي" aria-label="اسم المكوّن" required>
+    <select class="field" name="unit" aria-label="الوحدة">{% for k, v in UNITS.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}</select>
+    <input class="field" name="opening_stock" type="number" min="0" step="any" dir="ltr" placeholder="الكمية الموجودة" aria-label="الكمية الموجودة الآن">
+    <input class="field" name="default_cost" type="number" min="0" step="0.01" dir="ltr" placeholder="سعر الوحدة $" aria-label="سعر الوحدة التقريبي">
+    <input class="field" name="low_stock" type="number" min="0" step="any" dir="ltr" placeholder="الحد الأدنى" aria-label="تنبيه عندما يقل عن">
+    <button class="btn primary">إضافة</button>
+  </form>
+  {% for i in items %}
+  <div class="ingrow {{ 'low' if i.low }}" id="ing-{{ i.id }}">
+    <div class="ingmain">
+      <b>{{ i.name }}</b>
+      <span class="stock {{ 'neg' if i.stock < 0 }}">{{ qty(i.stock) }} {{ i.unit_label }}</span>
+      {% if i.low %}<span class="tag lowtag">قارب على النفاد</span>{% endif %}
+      <span class="muted small">{{ i.unit_cost|round|int|money }} لكل {{ i.unit_label }} · القيمة {{ i.value|round|int|money }}</span>
+    </div>
+    <div class="tools">
+      <form method="post" action="{{ url_for('admin.ingredient_update', ing_id=i.id) }}" class="countform">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><input type="hidden" name="action" value="count">
+        <input class="field" name="counted" type="number" min="0" step="any" dir="ltr" placeholder="الكمية الفعلية" aria-label="الكمية الفعلية في الجرد" required>
+        <button class="btn sm">جرد</button>
+      </form>
+      <a class="btn sm ghost" href="{{ url_for('admin.inventory_page', edit=i.id) }}#ing-{{ i.id }}">تعديل</a>
+    </div>
+    {% if edit_id == i.id %}
+    <form method="post" action="{{ url_for('admin.ingredient_update', ing_id=i.id) }}" class="ingedit">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label class="f">الاسم<input class="field" name="name" value="{{ i.name }}"></label>
+      <label class="f">الوحدة<select class="field" name="unit">{% for k, v in UNITS.items() %}<option value="{{ k }}" {{ 'selected' if k == i.unit }}>{{ v }}</option>{% endfor %}</select></label>
+      <label class="f">سعر الوحدة إن لم توجد مشتريات ($)<input class="field" name="default_cost" type="number" min="0" step="0.01" dir="ltr" value="{{ '%.2f'|format(i.default_cost / 100) }}"></label>
+      <label class="f">تنبيه عندما يقل عن<input class="field" name="low_stock" type="number" min="0" step="any" dir="ltr" value="{{ qty(i.low_stock) }}"></label>
+      <div class="row">
+        <button class="btn primary sm">حفظ</button>
+        <a class="btn sm" href="{{ url_for('admin.inventory_page') }}#ing-{{ i.id }}">إغلاق</a>
+        {% if confirm_id == i.id %}
+          <button class="btn sm danger" name="action" value="delete">تأكيد الحذف</button>
+        {% else %}
+          <a class="btn sm ghost" href="{{ url_for('admin.inventory_page', edit=i.id, confirm=i.id) }}#ing-{{ i.id }}">حذف المكوّن</a>
+        {% endif %}
+      </div>
+    </form>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty" style="border:0"><strong>لا مكوّنات بعد</strong><span>ابدأ بالمكوّنات الأساسية: الأرز، الدجاج، اللحم، الزيت…</span></div>
+  {% endfor %}
+</div>
+
+{% if purchases %}
+<div class="list" style="margin-top:16px">
+  <h3>آخر المشتريات</h3>
+  {% for p in purchases %}
+  <div class="irow buyrow">
+    <div class="nm"><span><b>{{ p.ingredient }}</b> · {{ qty(p.qty) }} {{ UNITS.get(p.unit, p.unit) }}{% if p.supplier %} · {{ p.supplier }}{% endif %}</span><span class="muted small">{{ p.purchase_date|day_label }}</span></div>
+    <span class="r">{{ p.cost_cents|money }}</span>
+    <form method="post" action="{{ url_for('admin.purchase_delete', purchase_id=p.id) }}" class="inline">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="btn sm ghost" title="حذف عملية الشراء">حذف</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

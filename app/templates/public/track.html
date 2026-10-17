@@ -1,10 +1,11 @@
 {% extends "base.html" %}
+{% from "_brand.html" import mark with context %}
 {% block title %}طلب #{{ o.number }} · {{ S.kitchen_name }}{% endblock %}
 {% block head %}{% if o.status not in ('done', 'cancelled') %}<meta http-equiv="refresh" content="60">{% endif %}<meta name="robots" content="noindex">{% endblock %}
 {% block body %}
 <div class="wrap narrow">
   <header class="hero">
-    <a class="brand" href="{{ url_for('public.menu') }}"><span class="mark" aria-hidden="true">{{ S.kitchen_name[:1] }}</span><span class="t">{{ S.kitchen_name }}</span></a>
+    <a class="brand" href="{{ url_for('public.menu') }}">{{ mark('') }}<span class="t">{{ S.kitchen_name }}</span></a>
   </header>
 
   <div class="track">
@@ -46,6 +47,29 @@
       {% if o.notes %}<div class="o-notes">{{ o.notes }}</div>{% endif %}
       <p class="hint" style="margin:0">الدفع عند الاستلام{% if o.paid %} · تم الدفع{% endif %}.</p>
     </section>
+
+    {% if o.status == 'done' %}
+    <section class="panel" id="review">
+      {% if review %}
+        <h3>تقييمك</h3>
+        <div class="stars big" aria-label="{{ review.rating }} من 5">{{ '★' * review.rating }}{{ '☆' * (5 - review.rating) }}</div>
+        {% if review.comment %}<div class="o-notes">{{ review.comment }}</div>{% endif %}
+        <p class="hint" style="margin:0">شكرًا لك! رأيك يساعدنا نتحسّن.</p>
+      {% else %}
+        <h3>كيف كان طلبك؟</h3>
+        {% if review_error %}<div class="alert" role="alert">اختر عدد النجوم أولًا.</div>{% endif %}
+        <form method="post" action="{{ url_for('public.review', token=o.public_token) }}" class="form">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <fieldset class="rate">
+            <legend class="sr">التقييم من 1 إلى 5</legend>
+            {% for n in [5, 4, 3, 2, 1] %}<input type="radio" id="rate{{ n }}" name="rating" value="{{ n }}"><label for="rate{{ n }}" title="{{ n }} من 5">★</label>{% endfor %}
+          </fieldset>
+          <label class="f">ملاحظاتك (اختياري)<textarea name="comment" maxlength="600" placeholder="ما الذي أعجبك؟ وما الذي نحسّنه؟"></textarea></label>
+          <div><button class="btn primary">أرسل التقييم</button></div>
+        </form>
+      {% endif %}
+    </section>
+    {% endif %}
 
     {% if S.kitchen_phone %}<p class="muted">للتعديل أو الإلغاء تواصل معنا: <span dir="ltr" class="phone">{{ S.kitchen_phone }}</span></p>{% endif %}
     <a class="btn" href="{{ url_for('public.menu') }}">طلب جديد</a>

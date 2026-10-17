@@ -263,14 +263,16 @@ def api_pulse():
 def prep():
     day = _day_arg()
     rows, active = services.prep_summary(day.isoformat())
-    return render_template("admin/prep.html", day=day, rows=rows, active=active, timedelta=timedelta)
+    from .inventory import ingredients_needed
+    return render_template("admin/prep.html", day=day, rows=rows, active=active, timedelta=timedelta,
+                           needed=ingredients_needed(day.isoformat()))
 
 
 # ---------------------------------------------------------------- menu
 @bp.get("/menu")
 @login_required
 def menu():
-    return render_template("admin/menu.html", items=services.menu_items(),
+    return render_template("admin/menu.html", items=services.menu_items(), categories=services.categories(),
                            confirm_id=parse_int(request.args.get("confirm"), None))
 
 
@@ -361,7 +363,8 @@ def settings():
         flash("حُفظت الإعدادات.")
         return redirect(url_for("admin.settings"))
     users = db.query("SELECT id, username, display_name, is_active FROM users ORDER BY id")
-    return render_template("admin/settings.html", users=users, error=error)
+    return render_template("admin/settings.html", users=users, error=error, categories=services.categories(),
+                           confirm_cat=parse_int(request.args.get("confirm_cat"), None))
 
 
 @bp.post("/users")
@@ -397,3 +400,7 @@ def change_password():
         db.commit()
         flash("تم تغيير كلمة المرور.")
     return redirect(url_for("admin.settings") + "#account")
+
+
+# Register the additional dashboard pages on this blueprint
+from . import admin_extra  # noqa: E402,F401

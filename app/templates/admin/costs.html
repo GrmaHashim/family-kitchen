@@ -1,0 +1,60 @@
+{% extends "admin/base.html" %}
+{% set active = 'costs' %}
+{% block title %}التكاليف والأرباح · {{ S.kitchen_name }}{% endblock %}
+{% block main %}
+<div class="daybar">
+  <div class="seg">
+    <a href="{{ url_for('admin.costs', days=7) }}" class="{{ 'on' if p.days == 7 }}">آخر 7 أيام</a>
+    <a href="{{ url_for('admin.costs', days=30) }}" class="{{ 'on' if p.days == 30 }}">آخر 30 يومًا</a>
+  </div>
+  <h2 class="dayh">الأرباح: {{ p.start|short_date }} – {{ p.end|short_date }}</h2>
+</div>
+<div class="kpis">
+  <div class="kpi"><span>مبيعات الأصناف</span><b>{{ p.revenue|money }}</b></div>
+  <div class="kpi"><span>تكلفة المكوّنات (تقديرية)</span><b>{{ p.cost|round|int|money }}</b></div>
+  <div class="kpi good"><span>الربح الإجمالي</span><b>{{ p.gross_profit|round|int|money }}</b></div>
+  <div class="kpi"><span>هامش الربح</span><b>{{ p.margin|round|int }}%</b></div>
+  <div class="kpi"><span>المصروف على المشتريات</span><b>{{ p.purchases|money }}</b></div>
+</div>
+{% if p.uncosted %}<div class="notice small-notice">مبيعات بقيمة {{ p.uncosted|money }} لأصناف ليس لها وصفة (أو أصناف خاصة)، فحُسبت تكلفتها صفرًا. أضف وصفاتها من الجدول أدناه لتصبح الأرقام أدق.</div>{% endif %}
+<p class="hint">رسوم التوصيل ({{ p.fees|money }}) غير داخلة في المبيعات أعلاه. الربح الإجمالي هو المبيعات ناقص تكلفة المكوّنات، قبل المصاريف الأخرى كالغاز والتوصيل.</p>
+
+<div class="formhead" style="margin-top:24px"><h2>تكلفة كل صنف وتسعيره</h2></div>
+<form method="post" action="{{ url_for('admin.costs_target') }}" class="targetform">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <label for="target">نسبة التكلفة المستهدفة من سعر البيع:</label>
+  <input class="field" id="target" name="target" type="number" min="5" max="95" dir="ltr" value="{{ target }}"><span>%</span>
+  <button class="btn sm">حفظ</button>
+  <span class="muted small">المطابخ عادةً تستهدف 25–35%. السعر المقترح = التكلفة ÷ هذه النسبة.</span>
+</form>
+<div class="tablewrap">
+  <table class="costtable">
+    <thead><tr><th>الصنف</th><th>سعر البيع</th><th>التكلفة</th><th>نسبة التكلفة</th><th>الربح للوحدة</th><th>السعر المقترح</th><th></th></tr></thead>
+    <tbody>
+    {% for d in dishes %}
+      <tr>
+        <td><b>{{ d.name }}</b>{% if not d.has_recipe %}<br><span class="tag lowtag">بدون وصفة</span>{% endif %}</td>
+        <td>{{ d.price_cents|money }}</td>
+        <td>{{ d.total_cost|round|int|money if d.has_recipe or d.extra_cost_cents else '—' }}</td>
+        <td>{% if d.has_recipe %}<span class="pct {{ 'bad' if d.cost_pct > target + 10 else ('ok' if d.cost_pct > target else 'good') }}">{{ d.cost_pct|round|int }}%</span>{% else %}—{% endif %}</td>
+        <td>{{ d.profit|round|int|money if d.has_recipe else '—' }}</td>
+        <td>{{ d.suggested|round|int|money if d.has_recipe else '—' }}</td>
+        <td><a class="btn sm" href="{{ url_for('admin.recipe_edit', item_id=d.id) }}">{{ 'الوصفة' if d.has_recipe else 'أضف الوصفة' }}</a></td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="muted">أضف أصنافًا من تبويب «القائمة» أولًا.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if p.dishes %}
+<div class="list" style="margin-top:16px">
+  <h3>ربح كل صنف في الفترة</h3>
+  {% for r in p.dishes %}
+  <div class="irow profitrow"><div class="nm"><span>{{ r.name }}{% if not r.known %} <span class="muted small">(بلا وصفة)</span>{% endif %}</span></div>
+    <span class="r">{{ r.qty }}×</span><span class="r">{{ r.revenue|money }}</span><span class="r {{ 'good' if r.known }}">{{ r.profit|round|int|money if r.known else '—' }}</span></div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

@@ -18,6 +18,17 @@
     </div>
     {% endfor %}
   </div>
+  {% if needed %}
+  <div class="list"><h3>المكوّنات المطلوبة للطلبات التي لم تُسلَّم</h3>
+    {% for n in needed %}
+    <div class="irow needrow {{ 'short' if n.short }}">
+      <div class="nm"><span>{{ n.name }}</span></div>
+      <span class="r">{{ ('%.2f'|format(n.need)).rstrip('0').rstrip('.') }} {{ n.unit_label }}</span>
+      <span class="r">{% if n.short %}<b class="neg">ينقص {{ ('%.2f'|format(n.short)).rstrip('0').rstrip('.') }}</b>{% else %}متوفر{% endif %}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
   <div class="list"><h3>جدول الطلبات النشطة</h3>
     {% for o in active %}
     <div class="trow s-{{ o.status }}">

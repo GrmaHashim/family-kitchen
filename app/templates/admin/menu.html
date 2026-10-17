@@ -9,22 +9,27 @@
 {%- endmacro %}
 {% block main %}
 <div class="formhead"><h2>القائمة</h2></div>
-<p class="hint">«نفد» يمنع طلب الصنف من الموقع مع بقائه ظاهرًا. «مخفي من الموقع» يجعله للطلبات الهاتفية فقط. الطلبات القديمة تحتفظ بالاسم والسعر وقت الطلب.</p>
+<p class="hint">لإضافة تصنيف أو تعديله أو ترتيبه اذهب إلى <a href="{{ url_for('admin.settings') }}#categories">الإعدادات</a>. «نفد» يمنع طلب الصنف من الموقع مع بقائه ظاهرًا. «مخفي من الموقع» يجعله للطلبات الهاتفية فقط. الطلبات القديمة تحتفظ بالاسم والسعر وقت الطلب.</p>
 <div class="list">
   <form method="post" action="{{ url_for('admin.menu_add') }}" class="addmenu">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input class="field nmf" name="name" placeholder="اسم الصنف، مثل: كبسة لحم" aria-label="اسم الصنف" required>
-    <input class="field" name="category" placeholder="التصنيف: أطباق رئيسية" aria-label="التصنيف" list="cats">
+    <select class="field" name="category" aria-label="التصنيف">
+      <option value="">بدون تصنيف</option>
+      {% for c in categories %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+    </select>
     <input class="field" name="price" type="number" inputmode="decimal" min="0" step="0.5" dir="ltr" placeholder="السعر $" aria-label="السعر">
     <button class="btn primary">إضافة</button>
   </form>
-  <datalist id="cats">{% for c in items|map(attribute='category')|unique if c %}<option value="{{ c }}">{% endfor %}</datalist>
   {% for m in items %}
   <div class="mrow" id="item-{{ m.id }}">
     <form method="post" action="{{ url_for('admin.menu_update', item_id=m.id) }}" class="edit">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <input class="field nmf" name="name" value="{{ m.name }}" aria-label="اسم الصنف">
-      <input class="field" name="category" value="{{ m.category }}" placeholder="التصنيف" aria-label="التصنيف" list="cats">
+      <select class="field" name="category" aria-label="التصنيف">
+        <option value="">بدون تصنيف</option>
+        {% for c in categories %}<option value="{{ c.name }}" {{ 'selected' if c.name == m.category }}>{{ c.name }}</option>{% endfor %}
+      </select>
       <input class="field" name="price" type="number" inputmode="decimal" min="0" step="0.5" dir="ltr" value="{{ '%.2f'|format(m.price_cents / 100) }}" aria-label="السعر">
       <button class="btn sm">حفظ</button>
       <input class="field desc" name="description" value="{{ m.description }}" placeholder="وصف قصير يظهر للزبائن (اختياري)" aria-label="الوصف">

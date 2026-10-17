@@ -1,17 +1,20 @@
 """Customer-facing pages: menu + order form, and order tracking."""
-from flask import Blueprint, abort, redirect, render_template, request, url_for
+from flask import Blueprint, Response, abort, redirect, render_template, request, url_for
 
 from . import services
-from .utils import normalize_phone, parse_date, today
+from .utils import normalize_phone, parse_date, parse_int, today
 
 bp = Blueprint("public", __name__)
 
 
 def _categories(items):
+    order = services.category_order()
     groups = {}
     for m in items:
-        groups.setdefault(m["category"] or "القائمة", []).append(m)
-    return list(groups.items())
+        groups.setdefault(m["category"] or "", []).append(m)
+    # Managed category order first; dishes without a category last
+    ranked = sorted(groups.items(), key=lambda kv: (kv[0] == "", order.get(kv[0], 999)))
+    return [(name or ("أصناف أخرى" if len(ranked) > 1 else "القائمة"), dishes) for name, dishes in ranked]
 
 
 @bp.get("/")
@@ -33,6 +36,8 @@ def _render_menu(form, error, status=200):
         error=error,
         min_order=services.setting_int("min_order_cents"),
         delivery_fee=services.setting_int("delivery_fee_cents"),
+        reviews=services.reviews("published")[:6],
+        review_stats=services.review_stats(published_only=True),
     ), status
 
 
@@ -110,4 +115,32 @@ def track(token):
         abort(404)
     steps = ["new", "confirmed", "preparing", "ready", "done"]
     return render_template("public/track.html", o=order, steps=steps,
-                           just_placed=request.args.get("new") == "1")
+                           just_placed=request.args.get("new") == "1",
+                           review=services.review_for_order(order["id"]),
+                           review_error=request.args.get("review_error"))
+
+
+@bp.post("/o/<token>/review")
+def review(token):
+    order = services.get_order(token=token)
+    if not order:
+        abort(404)
+    rating = parse_int(request.form.get("rating"), 0)
+    if not 1 <= rating <= 5:
+        return redirect(url_for("public.track", token=token, review_error=1) + "#review")
+    try:
+        services.add_review(order, rating, request.form.get("comment", ""))
+    except ValueError:
+        pass
+    return redirect(url_for("public.track", token=token) + "#review")
+
+
+@bp.get("/brand/logo")
+def logo():
+    data, mimetype = services.load_logo()
+    if not data:
+        abort(404)
+    resp = Response(data, mimetype=mimetype)
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    return resp

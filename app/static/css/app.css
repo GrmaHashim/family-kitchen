@@ -278,3 +278,83 @@ textarea { resize: vertical; min-height: 70px; }
   .custom-row input:first-child { grid-column: 1 / -1; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ---------- v2: brand, reviews, inventory, costs ---------- */
+.logo { width: 42px; height: 42px; border-radius: 12px; object-fit: cover; flex: none; background: var(--surface); border: 1px solid var(--line); }
+.logo.lg, .mark.lg { width: 76px; height: 76px; border-radius: 18px; font-size: 36px; }
+.logo.xl, .mark.xl { width: 88px; height: 88px; border-radius: 20px; font-size: 40px; }
+.brandrow { display: flex; align-items: center; gap: 14px; }
+.badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-inline-start: 6px; border-radius: 999px; background: var(--st-cancelled); color: #fff; font-size: 12px; font-weight: 700; }
+.tabs a.on .badge { background: var(--st-cancelled); color: #fff; }
+.catform { display: flex; gap: 6px; min-width: 0; }
+.urow .catform { flex: 1 1 200px; }
+.catform .field { font-size: 15px; padding: 6px 10px; }
+.urow { flex-wrap: wrap; }
+.nowrap { white-space: nowrap; }
+.small { font-size: 12px; }
+.neg { color: var(--st-cancelled); }
+.good { color: var(--st-ready); }
+
+.stars { color: var(--saffron); letter-spacing: 2px; }
+.stars.big { font-size: 22px; }
+.reviews { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 10px; }
+.review { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.review blockquote { margin: 0; overflow-wrap: anywhere; }
+.review figcaption { font-size: 13px; color: var(--muted); font-weight: 600; }
+.rate { border: 0; margin: 0; padding: 0; display: inline-flex; flex-direction: row-reverse; justify-content: flex-end; gap: 4px; }
+.rate input { position: absolute; opacity: 0; pointer-events: none; }
+.rate label { font-size: 38px; line-height: 1; color: var(--line); cursor: pointer; transition: color .1s; }
+.rate input:checked ~ label, .rate label:hover, .rate label:hover ~ label { color: var(--saffron); }
+.rate input:focus-visible + label { outline: 2px solid var(--saffron); outline-offset: 2px; border-radius: 6px; }
+.rv-pending { --st: var(--st-new); --stbg: var(--st-new-bg); }
+.rv-published { --st: var(--st-ready); --stbg: var(--st-ready-bg); }
+.rv-hidden { --st: var(--st-done); --stbg: var(--st-done-bg); }
+.kpi b small { font-size: 18px; }
+.kpi.good b { color: var(--st-ready); }
+
+.buyform { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 10px; align-items: end; }
+.buyform-btn .btn { width: 100%; }
+.ingadd { display: grid; grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) auto; gap: 8px; padding: 12px 14px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.ingrow { padding: 10px 14px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.ingrow:last-child { border-bottom: 0; }
+.ingrow.low { background: var(--st-cancelled-bg); }
+.ingmain { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; flex: 1 1 260px; min-width: 0; }
+.ingmain .stock { font-weight: 700; font-variant-numeric: tabular-nums; }
+.lowtag { background: var(--st-cancelled-bg); color: var(--st-cancelled); }
+.ingrow .tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.countform { display: flex; gap: 6px; }
+.countform .field { width: 8.5em; font-size: 14px; padding: 5px 8px; }
+.ingedit { flex-basis: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(170px, 100%), 1fr)); gap: 8px; align-items: end; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.ingedit .row { grid-column: 1 / -1; }
+.buyrow { grid-template-columns: minmax(0, 1fr) 6em auto; }
+.buyrow .nm { flex-direction: row; justify-content: space-between; flex-wrap: wrap; gap: 4px 10px; }
+
+.notice.small-notice { font-size: 14px; margin-bottom: 8px; }
+.targetform { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; font-weight: 600; }
+.targetform .field { width: 5em; padding: 5px 8px; }
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.costtable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 640px; }
+.costtable th { text-align: start; font-size: 12px; color: var(--muted); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.costtable td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.costtable tr:last-child td { border-bottom: 0; }
+.pct { font-weight: 700; padding: 1px 8px; border-radius: 6px; }
+.pct.good { background: var(--st-ready-bg); color: var(--st-ready); }
+.pct.ok { background: var(--saffron-soft); color: var(--saffron); }
+.pct.bad { background: var(--st-cancelled-bg); color: var(--st-cancelled); }
+.profitrow { grid-template-columns: minmax(0, 1fr) 3.5em 6em 6em; }
+.reciperow { grid-template-columns: minmax(0, 1fr) auto 5em auto; }
+.qtyform { display: flex; align-items: center; gap: 6px; }
+.qtyform .field { width: 6em; padding: 5px 8px; font-size: 14px; }
+.addline { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 8px; padding: 12px 14px; background: var(--bg); border-top: 1px solid var(--line); }
+.needrow { grid-template-columns: minmax(0, 1fr) 6em 7em; }
+.needrow.short { background: var(--st-cancelled-bg); }
+
+@media (max-width: 620px) {
+  .ingadd { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ingadd .nmf { grid-column: 1 / -1; }
+  .reciperow { grid-template-columns: minmax(0, 1fr) auto; }
+  .reciperow .nm { grid-column: 1 / -1; }
+  .addline { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .addline select { grid-column: 1 / -1; }
+  .profitrow { grid-template-columns: minmax(0, 1fr) 3em 5.5em 5.5em; font-size: 14px; }
+}
